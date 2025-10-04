@@ -1,0 +1,1 @@
+# Velora – mit DB & E-Mail\n\n## Start lokal\n```\ncp .env.example .env\nnpm i\nnpx prisma generate\nnpx prisma migrate dev --name init\nnpm run dev\n```\n\n## Deploy (Vercel)\n- Setze `DATABASE_URL` (Postgres), SMTP Variablen, `NEXT_PUBLIC_SITE_URL`.\n- Danach `npx vercel`.\n
