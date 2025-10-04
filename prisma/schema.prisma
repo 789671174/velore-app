@@ -1,21 +1,23 @@
-﻿generator client { provider = "prisma-client-js" }
+generator client {
+  provider = "prisma-client-js"
+}
 
 datasource db {
-  provider = "sqlite"
+  provider = "sqlite" // in Prod später auf "postgresql" umstellen
   url      = env("DATABASE_URL")
 }
 
 model Business {
-  id          String    @id @default(cuid())
-  slug        String    @unique
+  id          String   @id @default(cuid())
+  slug        String   @unique
   name        String
   domain      String?
   logoDataUrl String?
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime @default(now())
 
-  bookings    Booking[]
-  holidays    Holiday[]
-  settings    Settings?
+  bookings Booking[]
+  holidays Holiday[]
+  settings Settings?
 }
 
 model Booking {
@@ -23,14 +25,14 @@ model Booking {
   businessId String
   business   Business @relation(fields: [businessId], references: [id])
 
-  firstName  String
-  lastName   String
-  email      String
-  phone      String?
-  date       DateTime
-  time       String
-  status     Status   @default(pending)
-  createdAt  DateTime @default(now())
+  firstName String
+  lastName  String
+  email     String
+  phone     String?
+  date      DateTime
+  time      String
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
 
   @@index([businessId, date, time])
 }
@@ -40,25 +42,19 @@ model Holiday {
   businessId String
   business   Business @relation(fields: [businessId], references: [id])
 
-  date       String
-  reason     String?
-  createdAt  DateTime @default(now())
+  date      String
+  reason    String?
+  createdAt DateTime @default(now())
 
   @@index([businessId, date])
 }
 
 model Settings {
-  id            String   @id @default(cuid())
-  businessId    String   @unique
-  business      Business @relation(fields: [businessId], references: [id])
+  id         String   @id @default(cuid())
+  businessId String   @unique
+  business   Business @relation(fields: [businessId], references: [id])
 
-  slotMinutes   Int      @default(30)
-  bufferMinutes Int      @default(0)
-  hoursJson     String   @default("{}")
-}
-
-enum Status {
-  pending
-  accepted
-  declined
+  slotMinutes   Int    @default(30)
+  bufferMinutes Int    @default(0)
+  hoursJson     String @default("{}")
 }
