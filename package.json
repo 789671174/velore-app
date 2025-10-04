@@ -5,11 +5,10 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "postinstall": "prisma generate",
-    "start": "next start -p 3000",
+    "start": "next start",
     "lint": "next lint",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev --name init",
-    "postinstall": "prisma generate"
+    "prisma:migrate": "prisma migrate dev --name init"
   },
   "dependencies": {
     "@prisma/client": "5.17.0",
@@ -20,6 +19,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.6.2",
+    "@types/nodemailer": "^7.0.2",
     "@types/react": "18.2.66",
     "@types/react-dom": "18.2.22",
     "autoprefixer": "10.4.19",
