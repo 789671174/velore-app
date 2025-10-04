@@ -1,60 +1,31 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { getTenantFromRequest, resolveBusiness } from "@/app/lib/tenant";
 
-function defaultHours() {
-  return {
-    Mo:{open:true,start:"09:00",end:"18:00"},
-    Di:{open:true,start:"09:00",end:"18:00"},
-    Mi:{open:true,start:"09:00",end:"18:00"},
-    Do:{open:true,start:"09:00",end:"18:00"},
-    Fr:{open:true,start:"09:00",end:"18:00"},
-    Sa:{open:false,start:"09:00",end:"13:00"},
-    So:{open:false,start:"00:00",end:"00:00"},
+export async function GET(req: Request) {
+  const tenant = getTenantFromRequest(req);
+  const biz = await resolveBusiness(tenant);
+  if (!biz) return NextResponse.json({ error: "tenant not found" }, { status: 404 });
+  const settings = await prisma.settings.findUnique({ where: { businessId: biz.id } });
+  return NextResponse.json(settings || {});
+}
+
+export async function POST(req: Request) {
+  const tenant = getTenantFromRequest(req);
+  const biz = await resolveBusiness(tenant);
+  if (!biz) return NextResponse.json({ error: "tenant not found" }, { status: 404 });
+
+  const body = await req.json();
+  const payload = {
+    slotMinutes: Number(body.slotMinutes ?? 30),
+    bufferMinutes: Number(body.bufferMinutes ?? 0),
+    hoursJson: typeof body.hoursJson === "string" ? body.hoursJson : JSON.stringify(body.hoursJson || {}),
   };
-}
 
-async function ensureSettings() {
-  let s = await prisma.settings.findUnique({ where: { id: 1 } });
-  if (!s) {
-    s = await prisma.settings.create({
-      data: { id: 1, name: "Velora", hoursJson: JSON.stringify(defaultHours()) },
-    });
-  }
-  return s;
-}
-
-export async function GET() {
-  const s = await ensureSettings();
-  return NextResponse.json(s);
-}
-
-export async function PUT(request: Request) {
-  const body = await request.json();
-  const s = await ensureSettings();
-
-  const hoursString =
-    typeof body.hours === "string"
-      ? body.hours
-      : body.hours
-      ? JSON.stringify(body.hours)
-      : s.hoursJson;
-
-  const updated = await prisma.settings.update({
-    where: { id: s.id },
-    data: {
-      name: body.name ?? s.name,
-      logoDataUrl: body.logoDataUrl ?? s.logoDataUrl,
-      address: body.address ?? s.address,
-      phone: body.phone ?? s.phone,
-      email: body.email ?? s.email,
-      website: body.website ?? s.website,
-      slotMinutes:
-        typeof body.slotMinutes === "number" ? body.slotMinutes : s.slotMinutes,
-      bufferMinutes:
-        typeof body.bufferMinutes === "number" ? body.bufferMinutes : s.bufferMinutes,
-      hoursJson: hoursString,
-    },
+  const upserted = await prisma.settings.upsert({
+    where: { businessId: biz.id },
+    update: payload,
+    create: { businessId: biz.id, ...payload },
   });
-
-  return NextResponse.json(updated);
+  return NextResponse.json(upserted);
 }

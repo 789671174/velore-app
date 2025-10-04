@@ -1,42 +1,64 @@
-generator client {
-  provider = "prisma-client-js"
-}
+﻿generator client { provider = "prisma-client-js" }
 
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
-model Booking {
-  id        String   @id @default(cuid())
-  firstName String
-  lastName  String
-  email     String
-  phone     String?
-  date      String   // YYYY-MM-DD
-  time      String   // HH:mm
-  status    String   @default("pending") // statt enum
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Business {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  domain      String?
+  logoDataUrl String?
+  createdAt   DateTime  @default(now())
 
-  @@index([date, time])
+  bookings    Booking[]
+  holidays    Holiday[]
+  settings    Settings?
+}
+
+model Booking {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+
+  firstName  String
+  lastName   String
+  email      String
+  phone      String?
+  date       DateTime
+  time       String
+  status     Status   @default(pending)
+  createdAt  DateTime @default(now())
+
+  @@index([businessId, date, time])
 }
 
 model Holiday {
-  id     String @id @default(cuid())
-  date   String @unique
-  reason String?
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+
+  date       String
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  @@index([businessId, date])
 }
 
 model Settings {
-  id            Int    @id @default(1)
-  name          String @default("Velora")
-  logoDataUrl   String?
-  address       String?
-  phone         String?
-  email         String?
-  website       String?
-  slotMinutes   Int    @default(30)
-  bufferMinutes Int    @default(0)
-  hoursJson     String @default("{}")   // statt Json
+  id            String   @id @default(cuid())
+  businessId    String   @unique
+  business      Business @relation(fields: [businessId], references: [id])
+
+  slotMinutes   Int      @default(30)
+  bufferMinutes Int      @default(0)
+  hoursJson     String   @default("{}")
+}
+
+enum Status {
+  pending
+  accepted
+  declined
 }

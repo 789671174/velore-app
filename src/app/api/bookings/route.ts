@@ -1,1 +1,60 @@
-import { NextResponse } from "next/server"; import { prisma } from "@/app/lib/prisma"; import { sendMail } from "@/app/lib/mailer"; export async function GET(request:Request){const {searchParams}=new URL(request.url); const date=searchParams.get("date"); const status=searchParams.get("status"); const where:any={}; if(date) where.date=date; if(status) where.status=status; const data=await prisma.booking.findMany({where,orderBy:[{date:"asc"},{time:"asc"}]}); return NextResponse.json(data);} export async function POST(request:Request){const body=await request.json() as {firstName:string;lastName:string;email:string;phone?:string;date:string;time:string}; if(!body.firstName||!body.lastName||!body.email||!body.date||!body.time){return NextResponse.json({error:"missing fields"},{status:400});} const created=await prisma.booking.create({data:{...body,status:"pending"}}); const site=process.env.NEXT_PUBLIC_SITE_URL||""; await sendMail({to:body.email,subject:"Termin-Anfrage erhalten",html:`<p>Hallo ${body.firstName},</p><p>Wir haben deine Anfrage für ${body.date} ${body.time} erhalten. Wir melden uns asap.</p><p>Deine Anfrage-ID: <b>${created.id}</b></p>${site?`<p><a href="${site}/client">Zur Kundenseite</a></p>`:""}`}); const admin=process.env.MAIL_TO_ADMIN||""; if(admin){await sendMail({to:admin,subject:"Neue Termin-Anfrage",html:`<p>Neue Anfrage: ${body.date} ${body.time} – ${body.firstName} ${body.lastName} (${body.email})</p>`});} return NextResponse.json(created,{status:201}); } export async function PATCH(request:Request){const {searchParams}=new URL(request.url); const id=searchParams.get("id"); if(!id) return NextResponse.json({error:"id required"},{status:400}); const body=await request.json() as {status?:"pending"|"accepted"|"declined"}; const updated=await prisma.booking.update({where:{id},data:{status:body.status}}); return NextResponse.json(updated);}
+﻿import { NextResponse } from "next/server";
+import { prisma } from "@/app/lib/prisma";
+import { getTenantFromRequest, resolveBusiness } from "@/app/lib/tenant";
+
+export async function GET(req: Request) {
+  const tenant = getTenantFromRequest(req);
+  const biz = await resolveBusiness(tenant);
+  if (!biz) return NextResponse.json({ error: "tenant not found" }, { status: 404 });
+
+  const { searchParams } = new URL(req.url);
+  const date = searchParams.get("date"); // optionaler Filter
+  const where: any = { businessId: biz.id };
+  if (date) where.date = new Date(date);
+
+  const data = await prisma.booking.findMany({
+    where,
+    orderBy: [{ date: "asc" }, { time: "asc" }],
+  });
+  return NextResponse.json(data);
+}
+
+export async function POST(req: Request) {
+  const tenant = getTenantFromRequest(req);
+  const biz = await resolveBusiness(tenant);
+  if (!biz) return NextResponse.json({ error: "tenant not found" }, { status: 404 });
+
+  const body = await req.json();
+  const required = ["firstName", "lastName", "email", "date", "time"];
+  if (required.some((k) => !body?.[k])) {
+    return NextResponse.json({ error: "missing fields" }, { status: 400 });
+  }
+
+  const created = await prisma.booking.create({
+    data: {
+      businessId: biz.id,
+      firstName: body.firstName,
+      lastName: body.lastName,
+      email: body.email,
+      phone: body.phone ?? null,
+      date: new Date(body.date),
+      time: body.time,
+      status: "pending",
+    },
+  });
+  return NextResponse.json(created, { status: 201 });
+}
+
+export async function PATCH(req: Request) {
+  const tenant = getTenantFromRequest(req);
+  const biz = await resolveBusiness(tenant);
+  if (!biz) return NextResponse.json({ error: "tenant not found" }, { status: 404 });
+
+  const body = await req.json();
+  if (!body?.id) return NextResponse.json({ error: "id required" }, { status: 400 });
+  const updated = await prisma.booking.update({
+    where: { id: body.id },
+    data: { status: body.status ?? "pending" },
+  });
+  return NextResponse.json(updated);
+}
