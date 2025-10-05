@@ -1,31 +1,28 @@
 ﻿import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
-import { getTenantFromRequest, resolveBusiness } from "@/app/lib/tenant";
-
-export async function GET(req: Request) {
-  const tenant = getTenantFromRequest(req);
-  const biz = await resolveBusiness(tenant);
-  if (!biz) return NextResponse.json({ error: "tenant not found" }, { status: 404 });
-  const settings = await prisma.settings.findUnique({ where: { businessId: biz.id } });
-  return NextResponse.json(settings || {});
-}
 
 export async function POST(req: Request) {
-  const tenant = getTenantFromRequest(req);
-  const biz = await resolveBusiness(tenant);
-  if (!biz) return NextResponse.json({ error: "tenant not found" }, { status: 404 });
+  try {
+    const body = await req.json();
+    const { tenant, slotMinutes, bufferMinutes } = body as {
+      tenant: string;
+      slotMinutes: number;
+      bufferMinutes: number;
+    };
 
-  const body = await req.json();
-  const payload = {
-    slotMinutes: Number(body.slotMinutes ?? 30),
-    bufferMinutes: Number(body.bufferMinutes ?? 0),
-    hoursJson: typeof body.hoursJson === "string" ? body.hoursJson : JSON.stringify(body.hoursJson || {}),
-  };
+    if (!tenant) return NextResponse.json({ error: "tenant required" }, { status: 400 });
 
-  const upserted = await prisma.settings.upsert({
-    where: { businessId: biz.id },
-    update: payload,
-    create: { businessId: biz.id, ...payload },
-  });
-  return NextResponse.json(upserted);
+    const business = await prisma.business.findUnique({ where: { slug: tenant } });
+    if (!business) return NextResponse.json({ error: "business not found" }, { status: 404 });
+
+    const updated = await prisma.settings.upsert({
+      where: { businessId: business.id },
+      update: { slotMinutes, bufferMinutes },
+      create: { businessId: business.id, slotMinutes, bufferMinutes, hoursJson: "{}" },
+    });
+
+    return NextResponse.json({ ok: true, settings: updated });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message ?? "unknown error" }, { status: 500 });
+  }
 }
