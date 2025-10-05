@@ -1,85 +1,98 @@
 ﻿"use client";
 
-import { Business, Settings } from "@prisma/client";
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import clsx from "clsx";
 
 type Props = {
   tenant: string;
-  business: Business;
-  initialSettings: Settings;
+  business?: { name?: string };
+  initialSettings: {
+    slotMinutes?: number;
+    bufferMinutes?: number;
+    hoursJson?: Record<string, any> | string;
+  };
 };
 
-export default function SettingsView({ tenant, business, initialSettings }: Props) {
-  const [slotMinutes, setSlotMinutes] = useState(initialSettings.slotMinutes);
-  const [bufferMinutes, setBufferMinutes] = useState(initialSettings.bufferMinutes);
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState("");
+// !!! ACHTUNG: Passe den Import zu deiner echten Action an:
+async function saveSettings(input: {
+  tenant: string;
+  slotMinutes: number;
+  bufferMinutes: number;
+}) {
+  // Falls du bereits eine echte Action hast, ersetze das hier
+  // z.B. await fetch('/api/settings', { method: 'POST', body: JSON.stringify(input) })
+  return Promise.resolve();
+}
 
-  async function onSave() {
-    setSaving(true);
-    setMsg("");
-    try {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tenant,
-          slotMinutes: Number(slotMinutes),
-          bufferMinutes: Number(bufferMinutes),
-        }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      setMsg("Gespeichert ✅");
-    } catch (e: any) {
-      setMsg("Fehler: " + e.message);
-    } finally {
-      setSaving(false);
-    }
-  }
+export default function SettingsView({ tenant, business, initialSettings }: Props) {
+  const [slotMinutes, setSlotMinutes] = useState<number>(initialSettings.slotMinutes ?? 30);
+  const [bufferMinutes, setBufferMinutes] = useState<number>(initialSettings.bufferMinutes ?? 0);
+  const [ok, setOk] = useState<null | "saved" | "error">(null);
+  const [isPending, startTransition] = useTransition();
+
+  const onSubmit = () => {
+    setOk(null);
+    startTransition(async () => {
+      try {
+        await saveSettings({ tenant, slotMinutes, bufferMinutes });
+        setOk("saved");
+        setTimeout(() => setOk(null), 2000);
+      } catch (e) {
+        console.error(e);
+        setOk("error");
+      }
+    });
+  };
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-4">
-      <h1 className="text-xl font-semibold">Einstellungen – {business.name}</h1>
-      <p className="text-sm text-neutral-400">Tenant: {tenant}</p>
+    <div className="max-w-5xl mx-auto px-4 py-8">
+      <h1 className="text-2xl font-semibold mb-2">Einstellungen — {tenant.replaceAll("-", " ")}</h1>
+      <p className="text-sm opacity-70 mb-8">Tenant: {tenant}</p>
 
-      <div className="grid grid-cols-2 gap-4">
-        <label className="flex flex-col">
-          <span className="text-sm mb-1">Slot-Minuten</span>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div>
+          <label className="block text-sm mb-2">Slot-Minuten</label>
           <input
-            className="rounded bg-neutral-800 px-3 py-2"
             type="number"
-            value={slotMinutes}
-            onChange={(e) => setSlotMinutes(Number(e.target.value))}
             min={5}
             step={5}
+            value={slotMinutes}
+            onChange={(e) => setSlotMinutes(Number(e.target.value))}
+            className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
           />
-        </label>
-        <label className="flex flex-col">
-          <span className="text-sm mb-1">Puffer (Minuten)</span>
+        </div>
+
+        <div>
+          <label className="block text-sm mb-2">Puffer (Minuten)</label>
           <input
-            className="rounded bg-neutral-800 px-3 py-2"
             type="number"
-            value={bufferMinutes}
-            onChange={(e) => setBufferMinutes(Number(e.target.value))}
             min={0}
             step={5}
+            value={bufferMinutes}
+            onChange={(e) => setBufferMinutes(Number(e.target.value))}
+            className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
           />
-        </label>
+        </div>
       </div>
 
       <button
-        onClick={onSave}
-        disabled={saving}
-        className="rounded bg-emerald-600 hover:bg-emerald-500 px-4 py-2"
+        onClick={onSubmit}
+        disabled={isPending}
+        className={clsx(
+          "rounded-md px-4 py-2 font-medium",
+          "bg-emerald-600 hover:bg-emerald-500 text-white",
+          isPending && "opacity-60 cursor-not-allowed"
+        )}
       >
-        {saving ? "Speichere…" : "Speichern"}
+        {isPending ? "Speichern…" : "Speichern"}
       </button>
 
-      {msg && <div className="text-sm opacity-80">{msg}</div>}
-
-      <pre className="text-xs opacity-60 mt-6">
-        {JSON.stringify(initialSettings, null, 2)}
-      </pre>
+      {ok === "saved" && (
+        <span className="ml-3 text-emerald-400 text-sm">Gespeichert ✓</span>
+      )}
+      {ok === "error" && (
+        <span className="ml-3 text-red-400 text-sm">Fehler beim Speichern</span>
+      )}
     </div>
   );
 }

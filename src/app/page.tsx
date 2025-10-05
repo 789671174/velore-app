@@ -1,1 +1,31 @@
-import Link from "next/link"; export default function Home(){return(<main className="min-h-screen flex items-center justify-center p-8"><div className="max-w-xl w-full space-y-4 text-center"><h1 className="text-2xl font-bold">Velora – Starter</h1><p className="opacity-75">Wähle eine Seite:</p><div className="flex gap-3 justify-center"><Link href="/client" className="px-4 py-2 rounded-xl border">Kundenseite</Link><Link href="/entrepreneur" className="px-4 py-2 rounded-xl border">Unternehmer</Link></div></div></main>);}
+﻿import Link from "next/link";
+
+const DEFAULT_TENANT =
+  process.env.NEXT_PUBLIC_DEFAULT_TENANT ||
+  process.env.DEFAULT_TENANT ||
+  "velora-hairstyles";
+
+export default function Start() {
+  return (
+    <main className="min-h-screen grid place-items-center">
+      <div className="text-center">
+        <h1 className="text-3xl font-semibold mb-6">Velora – Starter</h1>
+        <p className="mb-6 opacity-75">Wähle eine Seite:</p>
+        <div className="flex items-center gap-4 justify-center">
+          <Link
+            href={/t/\velora-hairstyles/client}
+            className="rounded-xl border border-white/15 px-5 py-3 hover:bg-white/5"
+          >
+            Kundenseite
+          </Link>
+          <Link
+            href={/t/\velora-hairstyles/entrepreneur}
+            className="rounded-xl border border-white/15 px-5 py-3 hover:bg-white/5"
+          >
+            Unternehmer
+          </Link>
+        </div>
+      </div>
+    </main>
+  );
+}
