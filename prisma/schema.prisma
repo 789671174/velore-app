@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite" // in Prod später auf "postgresql" umstellen
-  url      = env("DATABASE_URL")
+  provider = "sqlite" 
+  url     = "file:./dev.db"
 }
 
 model Business {
