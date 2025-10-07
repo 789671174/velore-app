@@ -1,15 +1,17 @@
-﻿import { getTenantSlug, ensureBusinessWithSettings } from "@/app/lib/tenant";
-import SettingsView from "./SettingsView";
+﻿// app/entrepreneur/settings/page.tsx
+import SettingsForm from "@/components/settings/SettingsForm";
 
-export default async function EntrepreneurSettingsPage({ searchParams }: { searchParams?: { t?: string } }) {
-  const slug = getTenantSlug(searchParams);
-  const { business, settings } = await ensureBusinessWithSettings(slug);
+export const metadata = {
+  title: "Einstellungen | Velora CRM",
+};
 
+export default function SettingsPage() {
   return (
-    <SettingsView
-      tenant={slug}
-      business={business}
-      initialSettings={settings}
-    />
+    <div className="mx-auto max-w-4xl p-6">
+      <h1 className="text-2xl font-semibold mb-4">
+        Unternehmens-Einstellungen
+      </h1>
+      <SettingsForm />
+    </div>
   );
 }

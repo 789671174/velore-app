@@ -1,28 +1,62 @@
-﻿import { NextResponse } from "next/server";
-import { prisma } from "@/app/lib/prisma";
+﻿// app/api/settings/route.ts
+import { kv } from "@vercel/kv";
 
-export async function POST(req: Request) {
+// Key-Helfer: optionaler Mandant (tenant) → eigener KV-Key
+function key(tenant?: string | null) {
+  return `velora:settings${tenant ? `:${tenant}` : ""}`;
+}
+
+// GET /api/settings?tenant=slug
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const tenant = searchParams.get("tenant");
+
   try {
-    const body = await req.json();
-    const { tenant, slotMinutes, bufferMinutes } = body as {
-      tenant: string;
-      slotMinutes: number;
-      bufferMinutes: number;
-    };
+    const data = await kv.get<unknown>(key(tenant));
+    return Response.json(data ?? null, { status: 200 });
+  } catch (e) {
+    // Falls KV nicht konfiguriert ist
+    return Response.json(
+      { error: "KV not configured" },
+      { status: 500 }
+    );
+  }
+}
 
-    if (!tenant) return NextResponse.json({ error: "tenant required" }, { status: 400 });
+// POST /api/settings
+export async function POST(req: Request) {
+  const body = await req.json().catch(() => null);
+  if (!body) {
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
 
-    const business = await prisma.business.findUnique({ where: { slug: tenant } });
-    if (!business) return NextResponse.json({ error: "business not found" }, { status: 404 });
+  const tenant: string | null = body.tenant ?? null;
 
-    const updated = await prisma.settings.upsert({
-      where: { businessId: business.id },
-      update: { slotMinutes, bufferMinutes },
-      create: { businessId: business.id, slotMinutes, bufferMinutes, hoursJson: "{}" },
-    });
+  // sehr einfache Validierung
+  const payload = {
+    tenant,
+    companyName: String(body.companyName ?? ""),
+    email: String(body.email ?? ""),
+    workingDays: Array.isArray(body.workingDays) ? body.workingDays : [],
+    openFrom: String(body.openFrom ?? "09:00"),
+    openTo: String(body.openTo ?? "18:00"),
+    vacationRange: {
+      start: body?.vacationRange?.start ?? null,
+      end: body?.vacationRange?.end ?? null,
+    },
+    holidays: Array.isArray(body.holidays) ? body.holidays : [],
+    logo: typeof body.logo === "string" ? body.logo : null, // base64 Data URL
+    updatedAt: new Date().toISOString(),
+  };
 
-    return NextResponse.json({ ok: true, settings: updated });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message ?? "unknown error" }, { status: 500 });
+  try {
+    await kv.set(key(tenant), payload);
+    return Response.json({ ok: true }, { status: 200 });
+  } catch (e) {
+    // Fallback: kein KV → nicht abstürzen
+    return Response.json(
+      { error: "KV not configured", saved: false },
+      { status: 500 }
+    );
   }
 }
