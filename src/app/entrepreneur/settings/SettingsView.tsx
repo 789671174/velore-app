@@ -1,98 +1,75 @@
-﻿"use client";
+﻿// src/app/entrepreneur/settings/SettingsView.tsx
+"use client";
 
-import { useState, useTransition } from "react";
-import clsx from "clsx";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner"; // Falls du sonner nutzt, sonst kannst du toast entfernen
+import SettingsForm from "@/components/settings/SettingsForm";
 
-type Props = {
-  tenant: string;
-  business?: { name?: string };
-  initialSettings: {
-    slotMinutes?: number;
-    bufferMinutes?: number;
-    hoursJson?: Record<string, any> | string;
-  };
+type BusinessSettings = {
+  name?: string;
+  email?: string;
+  logoUrl?: string;
+  workDays?: string[];
+  workHours?: { start: string; end: string };
+  holidays?: { start: string; end: string; description?: string }[];
 };
 
-// !!! ACHTUNG: Passe den Import zu deiner echten Action an:
-async function saveSettings(input: {
-  tenant: string;
-  slotMinutes: number;
-  bufferMinutes: number;
-}) {
-  // Falls du bereits eine echte Action hast, ersetze das hier
-  // z.B. await fetch('/api/settings', { method: 'POST', body: JSON.stringify(input) })
-  return Promise.resolve();
-}
+export default function SettingsView() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState<BusinessSettings | null>(null);
 
-export default function SettingsView({ tenant, business, initialSettings }: Props) {
-  const [slotMinutes, setSlotMinutes] = useState<number>(initialSettings.slotMinutes ?? 30);
-  const [bufferMinutes, setBufferMinutes] = useState<number>(initialSettings.bufferMinutes ?? 0);
-  const [ok, setOk] = useState<null | "saved" | "error">(null);
-  const [isPending, startTransition] = useTransition();
-
-  const onSubmit = () => {
-    setOk(null);
-    startTransition(async () => {
+  // Lädt die gespeicherten Einstellungen aus der API
+  useEffect(() => {
+    const loadSettings = async () => {
       try {
-        await saveSettings({ tenant, slotMinutes, bufferMinutes });
-        setOk("saved");
-        setTimeout(() => setOk(null), 2000);
+        const res = await fetch("/api/settings", { cache: "no-store" });
+        if (!res.ok) throw new Error("Fehler beim Laden");
+        const data = await res.json();
+        setSettings(data);
       } catch (e) {
         console.error(e);
-        setOk("error");
+        toast.error("Fehler beim Laden der Einstellungen");
+      } finally {
+        setLoading(false);
       }
-    });
+    };
+
+    loadSettings();
+  }, []);
+
+  // Wenn Daten gespeichert werden, rufe /api/settings POST auf
+  const handleSave = async (newSettings: BusinessSettings) => {
+    try {
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newSettings),
+      });
+      if (!res.ok) throw new Error("Fehler beim Speichern");
+      toast.success("Einstellungen gespeichert");
+      setSettings(newSettings);
+    } catch (e) {
+      console.error(e);
+      toast.error("Speichern fehlgeschlagen");
+    }
   };
 
+  if (loading) {
+    return (
+      <div className="p-6 text-gray-400 text-center">Lade Einstellungen...</div>
+    );
+  }
+
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-semibold mb-2">Einstellungen — {tenant.replaceAll("-", " ")}</h1>
-      <p className="text-sm opacity-70 mb-8">Tenant: {tenant}</p>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <div>
-          <label className="block text-sm mb-2">Slot-Minuten</label>
-          <input
-            type="number"
-            min={5}
-            step={5}
-            value={slotMinutes}
-            onChange={(e) => setSlotMinutes(Number(e.target.value))}
-            className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm mb-2">Puffer (Minuten)</label>
-          <input
-            type="number"
-            min={0}
-            step={5}
-            value={bufferMinutes}
-            onChange={(e) => setBufferMinutes(Number(e.target.value))}
-            className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
-          />
-        </div>
-      </div>
-
-      <button
-        onClick={onSubmit}
-        disabled={isPending}
-        className={clsx(
-          "rounded-md px-4 py-2 font-medium",
-          "bg-emerald-600 hover:bg-emerald-500 text-white",
-          isPending && "opacity-60 cursor-not-allowed"
-        )}
-      >
-        {isPending ? "Speichern…" : "Speichern"}
-      </button>
-
-      {ok === "saved" && (
-        <span className="ml-3 text-emerald-400 text-sm">Gespeichert ✓</span>
-      )}
-      {ok === "error" && (
-        <span className="ml-3 text-red-400 text-sm">Fehler beim Speichern</span>
-      )}
+    <div className="mx-auto max-w-4xl p-6">
+      <h1 className="text-2xl font-semibold mb-4">Unternehmens-Einstellungen</h1>
+      <SettingsForm
+        initialData={settings}
+        onSave={handleSave}
+      />
     </div>
   );
 }
+
