@@ -4,13 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 
 type WorkingDay = "mo" | "di" | "mi" | "do" | "fr" | "sa" | "so";
 const dayLabels: Record<WorkingDay, string> = {
-  mo: "Montag",
-  di: "Dienstag",
-  mi: "Mittwoch",
-  do: "Donnerstag",
-  fr: "Freitag",
-  sa: "Samstag",
-  so: "Sonntag",
+  mo: "Montag", di: "Dienstag", mi: "Mittwoch", do: "Donnerstag",
+  fr: "Freitag", sa: "Samstag", so: "Sonntag",
 };
 
 export type SettingsPayload = {
@@ -21,18 +16,20 @@ export type SettingsPayload = {
   openFrom: string;
   openTo: string;
   vacationRange: { start: string | null; end: string | null };
-  holidays: string[]; // ISO-Daten als Strings
-  logo: string | null; // base64 Data URL
+  holidays: string[];
+  logo: string | null; // base64
 };
 
+// Tenant ermitteln (funktioniert bei ?t=… und /t/<tenant>/…)
+function detectTenant(): string | null {
+  if (typeof window === "undefined") return null;
+  const byPath = window.location.pathname.split("/")[2] ?? null; // /t/<TENANT>/...
+  const byQuery = new URLSearchParams(window.location.search).get("t");
+  return byQuery ?? byPath ?? null;
+}
+
 export default function SettingsForm() {
-  // Tenant sowohl aus Query (?t=) als auch aus Pfad /t/[tenant]/…
-  const pathTenant =
-    typeof window !== "undefined" ? window.location.pathname.split("/")[2] ?? null : null;
-  const urlTenant =
-    typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search).get("t") ?? pathTenant
-      : null;
+  const tenant = detectTenant();
 
   const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
@@ -43,9 +40,9 @@ export default function SettingsForm() {
   const [openFrom, setOpenFrom] = useState("09:00");
   const [openTo, setOpenTo] = useState("18:00");
 
-  const [vacationStart, setVacationStart] = useState<string>("");
-  const [vacationEnd, setVacationEnd] = useState<string>("");
-  const [holidays, setHolidays] = useState<string>("");
+  const [vacationStart, setVacationStart] = useState("");
+  const [vacationEnd, setVacationEnd] = useState("");
+  const [holidays, setHolidays] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -68,14 +65,11 @@ export default function SettingsForm() {
     reader.readAsDataURL(f);
   }
 
-  // Daten laden
+  // Laden
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(
-          `/api/settings${urlTenant ? `?tenant=${encodeURIComponent(urlTenant)}` : ""}`,
-          { cache: "no-store" }
-        );
+        const res = await fetch(`/api/settings${tenant ? `?tenant=${encodeURIComponent(tenant)}` : ""}`, { cache: "no-store" });
         if (res.ok) {
           const s = (await res.json()) as SettingsPayload | null;
           if (s) {
@@ -86,16 +80,13 @@ export default function SettingsForm() {
             setOpenTo(s.openTo ?? "18:00");
             setVacationStart(s.vacationRange?.start ?? "");
             setVacationEnd(s.vacationRange?.end ?? "");
-            setHolidays(s.holidays?.join(", ") ?? "");
+            setHolidays((s.holidays ?? []).join(", "));
             setLogoPreview(s.logo ?? null);
           }
         }
-      } catch {
-        // ignorieren, wir haben noch LocalStorage
-      }
-
-      // Fallback LocalStorage (tenant-spezifischer Schlüssel)
-      const localKey = `velora.settings${urlTenant ? `:${urlTenant}` : ""}`;
+      } catch {}
+      // Fallback LocalStorage pro Tenant
+      const localKey = `velora.settings${tenant ? `:${tenant}` : ""}`;
       const raw = typeof window !== "undefined" ? localStorage.getItem(localKey) : null;
       if (raw) {
         try {
@@ -111,7 +102,6 @@ export default function SettingsForm() {
           setLogoPreview(s.logo || null);
         } catch {}
       }
-
       setLoaded(true);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,7 +109,7 @@ export default function SettingsForm() {
 
   async function onSave() {
     const payload: SettingsPayload = {
-      tenant: urlTenant ?? null,
+      tenant,
       companyName,
       email,
       workingDays,
@@ -130,22 +120,17 @@ export default function SettingsForm() {
       logo: logoPreview ?? null,
     };
 
-    // lokal zwischenspeichern (tenant-spezifisch)
-    const localKey = `velora.settings${urlTenant ? `:${urlTenant}` : ""}`;
-    if (typeof window !== "undefined") {
-      localStorage.setItem(localKey, JSON.stringify(payload));
-    }
+    // lokal
+    const localKey = `velora.settings${tenant ? `:${tenant}` : ""}`;
+    if (typeof window !== "undefined") localStorage.setItem(localKey, JSON.stringify(payload));
 
     setSaving(true);
     try {
-      const res = await fetch(
-        `/api/settings${urlTenant ? `?tenant=${encodeURIComponent(urlTenant)}` : ""}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
+      const res = await fetch(`/api/settings${tenant ? `?tenant=${encodeURIComponent(tenant)}` : ""}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
       if (!res.ok) throw new Error(await res.text());
       alert("Gespeichert.");
     } catch (e) {
@@ -157,32 +142,35 @@ export default function SettingsForm() {
   }
 
   if (!loaded) {
-    return <div className="opacity-70 p-6">Lade Einstellungen…</div>;
+    return (
+      <div className="rounded border px-3 py-2 text-sm opacity-80">
+        ⏳ Lade Einstellungen…
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
+      {/* DEBUG-Zeile immer sichtbar */}
+      <div className="rounded border px-3 py-2 text-xs">
+        <strong>DEBUG:</strong> tenant=<code>{String(tenant)}</code>
+      </div>
+
       {/* Unternehmen */}
       <section className="rounded-2xl p-4 shadow border">
         <h2 className="font-medium mb-3">Unternehmen</h2>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm mb-1">Name</label>
-            <input
-              className="w-full rounded border p-2 bg-transparent"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-              placeholder="z. B. Velora Hairstyles"
-            />
+            <input className="w-full rounded border p-2 bg-transparent"
+                   value={companyName} onChange={(e) => setCompanyName(e.target.value)}
+                   placeholder="z. B. Velora Hairstyles" />
           </div>
           <div>
             <label className="block text-sm mb-1">E-Mail</label>
-            <input
-              className="w-full rounded border p-2 bg-transparent"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="studio@beispiel.ch"
-            />
+            <input className="w-full rounded border p-2 bg-transparent"
+                   value={email} onChange={(e) => setEmail(e.target.value)}
+                   placeholder="studio@beispiel.ch" />
           </div>
           <div className="sm:col-span-2">
             <label className="block text-sm mb-1">Logo (optional)</label>
@@ -191,11 +179,8 @@ export default function SettingsForm() {
               <span className="text-xs opacity-70">{logoHint}</span>
             </div>
             {logoPreview && (
-              <img
-                src={logoPreview}
-                alt="Logo Preview"
-                className="mt-3 h-16 w-16 rounded object-contain border"
-              />
+              <img src={logoPreview} alt="Logo Preview"
+                   className="mt-3 h-16 w-16 rounded object-contain border" />
             )}
           </div>
         </div>
@@ -208,13 +193,9 @@ export default function SettingsForm() {
           <div>
             <div className="text-sm mb-2">Arbeitstage</div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {(["mo", "di", "mi", "do", "fr", "sa", "so"] as WorkingDay[]).map((d) => (
+              {(["mo","di","mi","do","fr","sa","so"] as WorkingDay[]).map((d) => (
                 <label key={d} className="flex items-center gap-2 rounded border px-2 py-1">
-                  <input
-                    type="checkbox"
-                    checked={workingDays.includes(d)}
-                    onChange={() => toggleDay(d)}
-                  />
+                  <input type="checkbox" checked={workingDays.includes(d)} onChange={() => toggleDay(d)} />
                   <span className="text-sm">{dayLabels[d]}</span>
                 </label>
               ))}
@@ -223,21 +204,15 @@ export default function SettingsForm() {
           <div className="flex items-center gap-3">
             <div>
               <label className="block text-sm mb-1">Öffnet um</label>
-              <input
-                type="time"
-                value={openFrom}
-                onChange={(e) => setOpenFrom(e.target.value)}
-                className="rounded border p-2 bg-transparent"
-              />
+              <input type="time" value={openFrom}
+                     onChange={(e) => setOpenFrom(e.target.value)}
+                     className="rounded border p-2 bg-transparent" />
             </div>
             <div>
               <label className="block text-sm mb-1">Schließt um</label>
-              <input
-                type="time"
-                value={openTo}
-                onChange={(e) => setOpenTo(e.target.value)}
-                className="rounded border p-2 bg-transparent"
-              />
+              <input type="time" value={openTo}
+                     onChange={(e) => setOpenTo(e.target.value)}
+                     className="rounded border p-2 bg-transparent" />
             </div>
           </div>
         </div>
@@ -249,42 +224,28 @@ export default function SettingsForm() {
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm mb-1">Ferien: Start</label>
-            <input
-              type="date"
-              value={vacationStart}
-              onChange={(e) => setVacationStart(e.target.value)}
-              className="w-full rounded border p-2 bg-transparent"
-            />
+            <input type="date" value={vacationStart}
+                   onChange={(e) => setVacationStart(e.target.value)}
+                   className="w-full rounded border p-2 bg-transparent" />
           </div>
           <div>
             <label className="block text-sm mb-1">Ferien: Ende</label>
-            <input
-              type="date"
-              value={vacationEnd}
-              onChange={(e) => setVacationEnd(e.target.value)}
-              className="w-full rounded border p-2 bg-transparent"
-            />
+            <input type="date" value={vacationEnd}
+                   onChange={(e) => setVacationEnd(e.target.value)}
+                   className="w-full rounded border p-2 bg-transparent" />
           </div>
           <div className="sm:col-span-2">
-            <label className="block text-sm mb-1">
-              Feiertage (YYYY-MM-DD, mit Komma trennen)
-            </label>
-            <input
-              className="w-full rounded border p-2 bg-transparent"
-              value={holidays}
-              onChange={(e) => setHolidays(e.target.value)}
-              placeholder="2025-01-01, 2025-12-25"
-            />
+            <label className="block text-sm mb-1">Feiertage (YYYY-MM-DD, Komma-getrennt)</label>
+            <input className="w-full rounded border p-2 bg-transparent"
+                   value={holidays} onChange={(e) => setHolidays(e.target.value)}
+                   placeholder="2025-01-01, 2025-12-25" />
           </div>
         </div>
       </section>
 
       <div className="flex justify-end">
-        <button
-          onClick={onSave}
-          disabled={saving}
-          className="rounded-2xl px-4 py-2 border shadow disabled:opacity-60"
-        >
+        <button onClick={onSave} disabled={saving}
+                className="rounded-2xl px-4 py-2 border shadow disabled:opacity-60">
           {saving ? "Speichere…" : "Speichern"}
         </button>
       </div>
