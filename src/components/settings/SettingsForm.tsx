@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 
 type WorkingDay = "mo" | "di" | "mi" | "do" | "fr" | "sa" | "so";
-
 const dayLabels: Record<WorkingDay, string> = {
   mo: "Montag",
   di: "Dienstag",
@@ -14,33 +13,33 @@ const dayLabels: Record<WorkingDay, string> = {
   so: "Sonntag",
 };
 
-type SettingsPayload = {
-  tenant?: string | null; // optionaler Mandant/Slug
+export type SettingsPayload = {
+  tenant?: string | null;
   companyName: string;
   email: string;
   workingDays: WorkingDay[];
   openFrom: string;
   openTo: string;
   vacationRange: { start: string | null; end: string | null };
-  holidays: string[];
-  logo: string | null; // base64 data URL
+  holidays: string[]; // ISO-Daten als Strings
+  logo: string | null; // base64 Data URL
 };
 
 export default function SettingsForm() {
-  const [tenant, setTenant] = useState<string | null>(null);
+  // Tenant sowohl aus Query (?t=) als auch aus Pfad /t/[tenant]/…
+  const pathTenant =
+    typeof window !== "undefined" ? window.location.pathname.split("/")[2] ?? null : null;
+  const urlTenant =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("t") ?? pathTenant
+      : null;
 
   const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
-  const [workingDays, setWorkingDays] = useState<WorkingDay[]>([
-    "mo",
-    "di",
-    "mi",
-    "do",
-    "fr",
-  ]);
+  const [workingDays, setWorkingDays] = useState<WorkingDay[]>(["mo", "di", "mi", "do", "fr"]);
   const [openFrom, setOpenFrom] = useState("09:00");
   const [openTo, setOpenTo] = useState("18:00");
 
@@ -57,9 +56,7 @@ export default function SettingsForm() {
   );
 
   function toggleDay(d: WorkingDay) {
-    setWorkingDays((prev) =>
-      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]
-    );
+    setWorkingDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
   }
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -71,12 +68,8 @@ export default function SettingsForm() {
     reader.readAsDataURL(f);
   }
 
-  // Initialdaten laden (Server → KV), Fallback: localStorage
+  // Daten laden
   useEffect(() => {
-    const urlTenant =
-      new URLSearchParams(window.location.search).get("t") ?? null;
-    setTenant(urlTenant);
-
     (async () => {
       try {
         const res = await fetch(
@@ -95,30 +88,30 @@ export default function SettingsForm() {
             setVacationEnd(s.vacationRange?.end ?? "");
             setHolidays(s.holidays?.join(", ") ?? "");
             setLogoPreview(s.logo ?? null);
-            setLoaded(true);
-            return;
           }
         }
       } catch {
-        // ignore
+        // ignorieren, wir haben noch LocalStorage
       }
 
-      // Fallback localStorage
-      const raw = localStorage.getItem("velora.settings");
+      // Fallback LocalStorage (tenant-spezifischer Schlüssel)
+      const localKey = `velora.settings${urlTenant ? `:${urlTenant}` : ""}`;
+      const raw = typeof window !== "undefined" ? localStorage.getItem(localKey) : null;
       if (raw) {
         try {
-          const s = JSON.parse(raw);
-          setCompanyName(s.companyName ?? "");
-          setEmail(s.email ?? "");
-          setWorkingDays(s.workingDays ?? workingDays);
-          setOpenFrom(s.openFrom ?? "09:00");
-          setOpenTo(s.openTo ?? "18:00");
-          setVacationStart(s.vacationRange?.start ?? "");
-          setVacationEnd(s.vacationRange?.end ?? "");
-          setHolidays(s.holidays?.join(", ") ?? "");
-          setLogoPreview(s.logo ?? null);
+          const s = JSON.parse(raw) as SettingsPayload;
+          setCompanyName((v) => v || s.companyName || "");
+          setEmail((v) => v || s.email || "");
+          setWorkingDays((s.workingDays as WorkingDay[]) || workingDays);
+          setOpenFrom((v) => v || s.openFrom || "09:00");
+          setOpenTo((v) => v || s.openTo || "18:00");
+          setVacationStart((v) => v || s.vacationRange?.start || "");
+          setVacationEnd((v) => v || s.vacationRange?.end || "");
+          setHolidays((s.holidays || []).join(", "));
+          setLogoPreview(s.logo || null);
         } catch {}
       }
+
       setLoaded(true);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -126,50 +119,50 @@ export default function SettingsForm() {
 
   async function onSave() {
     const payload: SettingsPayload = {
-      tenant,
+      tenant: urlTenant ?? null,
       companyName,
       email,
       workingDays,
       openFrom,
       openTo,
-      vacationRange: {
-        start: vacationStart || null,
-        end: vacationEnd || null,
-      },
-      holidays: holidays
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
+      vacationRange: { start: vacationStart || null, end: vacationEnd || null },
+      holidays: holidays.split(",").map((s) => s.trim()).filter(Boolean),
       logo: logoPreview ?? null,
     };
 
-    // lokal zwischenspeichern
-    localStorage.setItem("velora.settings", JSON.stringify(payload));
+    // lokal zwischenspeichern (tenant-spezifisch)
+    const localKey = `velora.settings${urlTenant ? `:${urlTenant}` : ""}`;
+    if (typeof window !== "undefined") {
+      localStorage.setItem(localKey, JSON.stringify(payload));
+    }
 
     setSaving(true);
     try {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        `/api/settings${urlTenant ? `?tenant=${encodeURIComponent(urlTenant)}` : ""}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
       if (!res.ok) throw new Error(await res.text());
       alert("Gespeichert.");
-    } catch (e: any) {
-      alert("Konnte nicht auf dem Server speichern. Lokal gesichert.");
+    } catch (e) {
       console.error(e);
+      alert("Konnte nicht auf dem Server speichern. Lokal gesichert.");
     } finally {
       setSaving(false);
     }
   }
 
   if (!loaded) {
-    return <div className="opacity-70">Lade Einstellungen…</div>;
+    return <div className="opacity-70 p-6">Lade Einstellungen…</div>;
   }
 
   return (
     <div className="space-y-6">
-      {/* Unternehmensdaten */}
+      {/* Unternehmen */}
       <section className="rounded-2xl p-4 shadow border">
         <h2 className="font-medium mb-3">Unternehmen</h2>
         <div className="grid sm:grid-cols-2 gap-4">
@@ -215,21 +208,16 @@ export default function SettingsForm() {
           <div>
             <div className="text-sm mb-2">Arbeitstage</div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {(["mo", "di", "mi", "do", "fr", "sa", "so"] as WorkingDay[]).map(
-                (d) => (
-                  <label
-                    key={d}
-                    className="flex items-center gap-2 rounded border px-2 py-1"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={workingDays.includes(d)}
-                      onChange={() => toggleDay(d)}
-                    />
-                    <span className="text-sm">{dayLabels[d]}</span>
-                  </label>
-                )
-              )}
+              {(["mo", "di", "mi", "do", "fr", "sa", "so"] as WorkingDay[]).map((d) => (
+                <label key={d} className="flex items-center gap-2 rounded border px-2 py-1">
+                  <input
+                    type="checkbox"
+                    checked={workingDays.includes(d)}
+                    onChange={() => toggleDay(d)}
+                  />
+                  <span className="text-sm">{dayLabels[d]}</span>
+                </label>
+              ))}
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -285,7 +273,7 @@ export default function SettingsForm() {
               className="w-full rounded border p-2 bg-transparent"
               value={holidays}
               onChange={(e) => setHolidays(e.target.value)}
-              placeholder="2025-01-01, 2025-04-18, 2025-12-25"
+              placeholder="2025-01-01, 2025-12-25"
             />
           </div>
         </div>
