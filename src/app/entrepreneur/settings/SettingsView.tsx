@@ -1,10 +1,8 @@
-﻿// src/app/entrepreneur/settings/SettingsView.tsx
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner"; // Falls du sonner nutzt, sonst kannst du toast entfernen
-import SettingsForm from "@/components/settings/SettingsForm";
+import { toast } from "sonner"; 
 
 type BusinessSettings = {
   name?: string;
@@ -20,7 +18,6 @@ export default function SettingsView() {
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
 
-  // Lädt die gespeicherten Einstellungen aus der API
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -39,7 +36,6 @@ export default function SettingsView() {
     loadSettings();
   }, []);
 
-  // Wenn Daten gespeichert werden, rufe /api/settings POST auf
   const handleSave = async (newSettings: BusinessSettings) => {
     try {
       const res = await fetch("/api/settings", {
