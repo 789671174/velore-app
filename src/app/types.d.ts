@@ -1,1 +1,26 @@
-export type Booking={id:string;firstName:string;lastName:string;email:string;phone?:string;date:string;time:string;status:"pending"|"accepted"|"declined"};export type DayHours={open:boolean;start:string;end:string};export type BusinessSettings={name:string;logoDataUrl?:string;address?:string;phone?:string;email?:string;website?:string;slotMinutes:number;bufferMinutes:number;hours:Record<string,DayHours>};export type Holiday={id:string;date:string;reason?:string};
+export type Booking = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string | null;
+  start: string;
+  end: string;
+  status: "pending" | "accepted" | "declined";
+};
+
+export type BusinessSettings = {
+  companyName: string;
+  email: string;
+  workingDays: string[];
+  openFrom: string;
+  openTo: string;
+  slotMinutes: number;
+  bufferMinutes: number;
+};
+
+export type Holiday = {
+  id: string;
+  date: string;
+  reason?: string | null;
+};

@@ -1,22 +1,15 @@
-﻿/* eslint-disable */
-import { prisma } from "@/app/lib/prisma";
+/* eslint-disable */
+import { ensureTenant } from "@/app/lib/store";
 
 async function main() {
-  const slug = (process.env.DEFAULT_TENANT || "velora-hairstyles").toLowerCase();
-  let biz = await prisma.business.findUnique({ where: { slug } });
-  if (!biz) {
-    biz = await prisma.business.create({
-      data: {
-        slug,
-        name: "Velora hairstyles",
-        logoDataUrl: null,
-        settings: { create: {} }
-      }
-    });
-    console.log("Created business:", biz.slug);
-  } else {
-    console.log("Business exists:", biz.slug);
-  }
+  const slug = (process.env.NEXT_PUBLIC_DEFAULT_TENANT || "velora-hairstyles").toLowerCase();
+  const tenant = await ensureTenant(slug);
+  console.log(`Tenant "${tenant.slug}" ist bereit.`);
 }
 
-main().then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1);});
+main()
+  .then(() => process.exit(0))
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });

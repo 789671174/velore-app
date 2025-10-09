@@ -1,46 +1,55 @@
-﻿import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import { NextResponse } from "next/server";
+import { ensureTenant, updateSettings } from "@/app/lib/store";
 
-async function ensureBusiness(tenant: string){
-  let biz = await prisma.business.findUnique({ where: { slug: tenant } });
-  if(!biz) biz = await prisma.business.create({ data: { slug: tenant, name: tenant }});
-  let s = await prisma.businessSettings.findFirst({ where: { businessId: biz.id } });
-  if(!s) s = await prisma.businessSettings.create({
-    data: {
-      businessId: biz.id, slotMinutes: 30, bufferMinutes: 0,
-      hoursJson: JSON.stringify({
-        mon:{closed:false,ranges:[{from:"09:00",to:"18:00"}]},
-        tue:{closed:false,ranges:[{from:"09:00",to:"18:00"}]},
-        wed:{closed:false,ranges:[{from:"09:00",to:"18:00"}]},
-        thu:{closed:false,ranges:[{from:"09:00",to:"18:00"}]},
-        fri:{closed:false,ranges:[{from:"09:00",to:"18:00"}]},
-        sat:{closed:true,ranges:[]}, sun:{closed:true,ranges:[]},
-      }),
-      holidaysJson: JSON.stringify({ items: [] }),
-    }
-  });
-  return { biz, s };
+type SettingsPayload = {
+  companyName?: string;
+  email?: string;
+  workingDays?: string[];
+  openFrom?: string;
+  openTo?: string;
+  slotMinutes?: number;
+  bufferMinutes?: number;
+};
+
+function sanitize(payload: SettingsPayload) {
+  return {
+    companyName: payload.companyName ?? "",
+    email: payload.email ?? "",
+    workingDays: Array.isArray(payload.workingDays)
+      ? payload.workingDays.filter((d) => typeof d === "string")
+      : undefined,
+    openFrom: payload.openFrom ?? "09:00",
+    openTo: payload.openTo ?? "18:00",
+    slotMinutes: Number(payload.slotMinutes ?? 30),
+    bufferMinutes: Number(payload.bufferMinutes ?? 0),
+  };
 }
 
-export async function GET(req:NextRequest, { params }: { params: { tenant: string } }){
-  const { s } = await ensureBusiness(params.tenant);
-  return NextResponse.json(s);
+export async function GET(
+  _req: Request,
+  { params }: { params: { tenant: string } }
+) {
+  const tenant = await ensureTenant(params.tenant);
+  return NextResponse.json(tenant.settings);
 }
 
-export async function POST(req:NextRequest, { params }: { params: { tenant: string } }){
-  const { biz, s } = await ensureBusiness(params.tenant);
-  const body = await req.json();
-  const slot = Math.max(5, Math.min(240, Number(body?.slotMinutes) || 30));
-  const buf  = Math.max(0, Math.min(240, Number(body?.bufferMinutes) || 0));
-  const updated = await prisma.businessSettings.update({
-    where: { id: s.id },
-    data: {
-      slotMinutes: slot,
-      bufferMinutes: buf,
-      hoursJson: typeof body?.hoursJson==="string" ? body.hoursJson : JSON.stringify(body?.hoursJson ?? {}),
-      holidaysJson: typeof body?.holidaysJson==="string" ? body.holidaysJson : JSON.stringify(body?.holidaysJson ?? {items:[]}),
-    },
-  });
-  return NextResponse.json(updated);
+export async function PUT(
+  req: Request,
+  { params }: { params: { tenant: string } }
+) {
+  try {
+    const payload = sanitize(await req.json());
+    const settings = await updateSettings(params.tenant, payload);
+    return NextResponse.json(settings);
+  } catch (error) {
+    console.error("PUT /settings failed", error);
+    return NextResponse.json(
+      { error: "Einstellungen konnten nicht gespeichert werden." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(req: Request, ctx: { params: { tenant: string } }) {
+  return PUT(req, ctx);
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 
 type WorkingDay = "mo" | "di" | "mi" | "do" | "fr" | "sa" | "so";
 
@@ -24,6 +25,12 @@ const LABELS: Record<WorkingDay, string> = {
 };
 
 export default function SettingsForm() {
+  const params = useParams();
+  const tenant = useMemo(() => {
+    const slug = params?.tenant as string | undefined;
+    return slug ?? process.env.NEXT_PUBLIC_DEFAULT_TENANT ?? "velora-hairstyles";
+  }, [params]);
+
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -34,7 +41,7 @@ export default function SettingsForm() {
     "di",
     "mi",
     "do",
-    "fr"
+    "fr",
   ]);
   const [openFrom, setOpenFrom] = useState("09:00");
   const [openTo, setOpenTo] = useState("18:00");
@@ -42,7 +49,7 @@ export default function SettingsForm() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/settings", { cache: "no-store" });
+        const res = await fetch(`/api/t/${tenant}/settings`, { cache: "no-store" });
         if (res.ok) {
           const s = (await res.json()) as SettingsPayload | null;
           if (s) {
@@ -53,13 +60,13 @@ export default function SettingsForm() {
             setOpenTo(s.openTo ?? "18:00");
           }
         }
-      } catch {
-        // ignore
+      } catch (error) {
+        console.error("Fehler beim Laden der Einstellungen", error);
       } finally {
         setLoaded(true);
       }
     })();
-  }, []);
+  }, [tenant]);
 
   function toggleDay(day: WorkingDay) {
     setWorkingDays((prev) =>
@@ -74,13 +81,13 @@ export default function SettingsForm() {
       email,
       workingDays,
       openFrom,
-      openTo
+      openTo,
     };
     try {
-      const res = await fetch("/api/settings", {
-        method: "POST",
+      const res = await fetch(`/api/t/${tenant}/settings`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(await res.text());
       alert("✅ Gespeichert!");
@@ -98,10 +105,6 @@ export default function SettingsForm() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded border px-3 py-2 text-xs">
-        <strong>DEBUG:</strong> SettingsForm ist sichtbar
-      </div>
-
       <section className="rounded-xl p-4 shadow border">
         <h2 className="font-medium mb-3">Unternehmen</h2>
         <div className="grid sm:grid-cols-2 gap-4">
