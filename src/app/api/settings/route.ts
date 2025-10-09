@@ -1,6 +1,6 @@
 ﻿import { kv } from "@vercel/kv";
 
-const KEY = "yourfuture:settings";
+const KEY = "velore:settings";
 
 export async function GET() {
   try {

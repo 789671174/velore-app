@@ -34,7 +34,7 @@ export default function SettingsForm() {
     "di",
     "mi",
     "do",
-    "fr",
+    "fr"
   ]);
   const [openFrom, setOpenFrom] = useState("09:00");
   const [openTo, setOpenTo] = useState("18:00");
@@ -54,9 +54,10 @@ export default function SettingsForm() {
           }
         }
       } catch {
-        // ignorieren
+        // ignore
+      } finally {
+        setLoaded(true);
       }
-      setLoaded(true);
     })();
   }, []);
 
@@ -73,19 +74,18 @@ export default function SettingsForm() {
       email,
       workingDays,
       openFrom,
-      openTo,
+      openTo
     };
-
     try {
       const res = await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       });
       if (!res.ok) throw new Error(await res.text());
       alert("✅ Gespeichert!");
-    } catch (err) {
-      console.error(err);
+    } catch (e) {
+      console.error(e);
       alert("❌ Speichern fehlgeschlagen.");
     } finally {
       setSaving(false);
@@ -111,7 +111,7 @@ export default function SettingsForm() {
               className="w-full rounded border p-2 bg-transparent"
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
-              placeholder="z. B. YourFuture Studio"
+              placeholder="z. B. Velore"
             />
           </div>
           <div>
@@ -120,7 +120,7 @@ export default function SettingsForm() {
               className="w-full rounded border p-2 bg-transparent"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="info@studio.ch"
+              placeholder="studio@beispiel.ch"
             />
           </div>
         </div>
@@ -133,10 +133,7 @@ export default function SettingsForm() {
             <div className="text-sm mb-2">Arbeitstage</div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {ALL_DAYS.map((d) => (
-                <label
-                  key={d}
-                  className="flex items-center gap-2 rounded border px-2 py-1"
-                >
+                <label key={d} className="flex items-center gap-2 rounded border px-2 py-1">
                   <input
                     type="checkbox"
                     checked={workingDays.includes(d)}

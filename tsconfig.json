@@ -22,7 +22,6 @@
         "src/*"
       ]
     },
-    /* WICHTIG: Node-Typen explizit aktivieren */
     "types": [
       "node",
       "react",
