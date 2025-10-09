@@ -1,5 +1,25 @@
-﻿import "server-only";
+import "server-only";
 import { prisma } from "@/app/lib/prisma";
+
+export function getTenantFromRequest(req: Request): string | null {
+  try {
+    const url = new URL(req.url);
+    const slug = url.searchParams.get("t");
+    if (slug) return slug;
+  } catch (error) {
+    // ignore invalid URL errors and fall back to headers / env
+  }
+  const headerSlug = (req.headers.get("x-tenant") || "").trim();
+  if (headerSlug) return headerSlug;
+  const envSlug = (process.env.DEFAULT_TENANT || "").trim();
+  return envSlug || null;
+}
+
+export async function resolveBusiness(tenant?: string | null) {
+  const slug = (tenant || process.env.DEFAULT_TENANT || "").toLowerCase().trim();
+  if (!slug) return null;
+  return prisma.business.findUnique({ where: { slug } });
+}
 
 export function getTenantSlug(searchParams?: { t?: string | string[] }) {
   const tParam = Array.isArray(searchParams?.t) ? searchParams?.t[0] : searchParams?.t;

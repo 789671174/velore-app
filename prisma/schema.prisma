@@ -1,48 +1,60 @@
-﻿generator client {
+generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "sqlite" 
+  url     = "file:./dev.db"
 }
 
 model Business {
-  id        String             @id @default(cuid())
-  slug      String             @unique
-  name      String?
-  settings  BusinessSettings[]
-  bookings  Booking[]
-  createdAt DateTime           @default(now())
-}
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  domain      String?
+  logoDataUrl String?
+  createdAt   DateTime @default(now())
 
-model BusinessSettings {
-  id             String   @id @default(cuid())
-  businessId     String
-  business       Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  slotMinutes    Int      @default(30)
-  bufferMinutes  Int      @default(0)
-  hoursJson      String   @default("{}")
-  holidaysJson   String   @default("{}")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  bookings Booking[]
+  holidays Holiday[]
+  settings Settings?
 }
 
 model Booking {
   id         String   @id @default(cuid())
   businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business   Business @relation(fields: [businessId], references: [id])
 
-  firstName  String
-  lastName   String
-  email      String
-  phone      String?
+  firstName String
+  lastName  String
+  email     String
+  phone     String?
+  date      DateTime
+  time      String
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
 
-  start      DateTime
-  end        DateTime
-  status     String   @default("pending")
+  @@index([businessId, date, time])
+}
 
-  createdAt  DateTime @default(now())
+model Holiday {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
 
-  @@index([businessId, start])
+  date      String
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([businessId, date])
+}
+
+model Settings {
+  id         String   @id @default(cuid())
+  businessId String   @unique
+  business   Business @relation(fields: [businessId], references: [id])
+
+  slotMinutes   Int    @default(30)
+  bufferMinutes Int    @default(0)
+  hoursJson     String @default("{}")
 }
