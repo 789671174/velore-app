@@ -1,14 +1,10 @@
 ﻿import { kv } from "@vercel/kv";
 
-function key(tenant?: string | null) {
-  return `velora:settings${tenant ? `:${tenant}` : ""}`;
-}
+const KEY = "yourfuture:settings";
 
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const tenant = searchParams.get("tenant");
+export async function GET() {
   try {
-    const data = await kv.get(key(tenant));
+    const data = await kv.get(KEY);
     return Response.json(data ?? null, { status: 200 });
   } catch (e) {
     console.error("KV GET error:", e);
@@ -17,11 +13,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const tenant = searchParams.get("tenant");
   try {
     const payload = await req.json();
-    await kv.set(key(tenant), payload);
+    await kv.set(KEY, payload);
     return Response.json({ ok: true }, { status: 200 });
   } catch (e) {
     console.error("KV POST error:", e);
