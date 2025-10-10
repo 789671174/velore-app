@@ -22,6 +22,36 @@ type Feedback = {
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
+function StepHeading({
+  step,
+  title,
+  description,
+  isDark,
+}: {
+  step: number;
+  title: string;
+  description?: string;
+  isDark: boolean;
+}) {
+  const badgeClass = isDark ? "bg-blue-500 text-white" : "bg-blue-100 text-blue-700";
+  const titleClass = isDark ? "text-neutral-100" : "text-neutral-900";
+  const descriptionClass = isDark ? "text-neutral-400" : "text-neutral-500";
+
+  return (
+    <div className="flex items-start gap-3">
+      <span
+        className={`flex h-8 w-8 flex-none items-center justify-center rounded-full text-sm font-semibold ${badgeClass}`}
+      >
+        {step}
+      </span>
+      <div>
+        <h2 className={`text-base font-semibold ${titleClass}`}>{title}</h2>
+        {description ? <p className={`text-sm ${descriptionClass}`}>{description}</p> : null}
+      </div>
+    </div>
+  );
+}
+
 export default function ClientPage() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const isDark = theme === "dark";
@@ -181,21 +211,21 @@ export default function ClientPage() {
   );
 
   const slotButtonClass = (slot: Slot) => {
-    const base = `rounded-xl border px-3 py-2 text-sm transition focus:outline-none focus:ring-2 ${
+    const base = `flex flex-col gap-1 rounded-xl border px-3 py-2 text-left text-sm transition focus:outline-none focus:ring-2 ${
       slot.disabled ? "cursor-not-allowed opacity-40" : ""
     }`;
     const active = selectedTime === slot.time;
     if (isDark) {
       return `${base} ${
         active
-          ? "border-blue-400 text-blue-200 ring-blue-300"
-          : "border-neutral-700 text-neutral-200 hover:border-blue-400 hover:text-blue-200"
+          ? "border-blue-400 ring-blue-300"
+          : "border-neutral-700 hover:border-blue-400"
       }`;
     }
     return `${base} ${
       active
-        ? "border-blue-500 text-blue-600 ring-blue-300"
-        : "border-neutral-300 text-neutral-700 hover:border-blue-500 hover:text-blue-600"
+        ? "border-blue-500 ring-blue-300"
+        : "border-neutral-300 hover:border-blue-500"
     }`;
   };
 
@@ -251,96 +281,142 @@ export default function ClientPage() {
           </div>
         )}
 
-        <div className={`${panelClass} p-6`}> 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="text-sm font-medium">Vorname</label>
-              <input
-                className={inputClass}
-                value={firstName}
-                onChange={(event) => setFirstName(event.target.value)}
-                placeholder="Max"
+        <div className={`${panelClass} p-6`}>
+          <div className="space-y-8">
+            <section>
+              <StepHeading
+                step={1}
+                title="Persönliche Angaben"
+                description="Wie dürfen wir Sie kontaktieren?"
+                isDark={isDark}
               />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Nachname</label>
-              <input
-                className={inputClass}
-                value={lastName}
-                onChange={(event) => setLastName(event.target.value)}
-                placeholder="Mustermann"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-sm font-medium">E-Mail</label>
-              <input
-                type="email"
-                className={inputClass}
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="max@example.com"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-sm font-medium">Telefon (optional)</label>
-              <input
-                className={inputClass}
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                placeholder="+41 44 123 45 67"
-              />
-            </div>
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div>
-              <label className="text-sm font-medium">Datum</label>
-              <input
-                type="date"
-                className={inputClass}
-                value={date}
-                onChange={(event) => setDate(event.target.value)}
-                style={{ colorScheme: theme }}
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-sm font-medium">Uhrzeit auswählen</label>
-              {loadingSlots ? (
-                <p className="mt-2 text-sm text-neutral-400">Slots werden geladen…</p>
-              ) : (
-                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {slots.length === 0 && (
-                    <p className="col-span-4 text-sm text-neutral-400">Keine Slots verfügbar.</p>
-                  )}
-                  {slots.map((slot) => (
-                    <button
-                      key={slot.time}
-                      type="button"
-                      disabled={slot.disabled}
-                      onClick={() => setSelectedTime(slot.time)}
-                      className={slotButtonClass(slot)}
-                    >
-                      {slot.time}
-                    </button>
-                  ))}
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium">Vorname</label>
+                  <input
+                    className={inputClass}
+                    value={firstName}
+                    onChange={(event) => setFirstName(event.target.value)}
+                    placeholder="Max"
+                  />
                 </div>
-              )}
-            </div>
-          </div>
+                <div>
+                  <label className="text-sm font-medium">Nachname</label>
+                  <input
+                    className={inputClass}
+                    value={lastName}
+                    onChange={(event) => setLastName(event.target.value)}
+                    placeholder="Mustermann"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-sm font-medium">E-Mail</label>
+                  <input
+                    type="email"
+                    className={inputClass}
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="max@example.com"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-sm font-medium">Telefon (optional)</label>
+                  <input
+                    className={inputClass}
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
+                    placeholder="+41 44 123 45 67"
+                  />
+                </div>
+              </div>
+            </section>
 
-          <div className="mt-6 flex justify-end">
-            <button
-              type="button"
-              onClick={submit}
-              disabled={submitting}
-              className={`rounded-xl px-5 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-                isDark
-                  ? "bg-blue-500 text-white hover:bg-blue-400 disabled:bg-blue-500/60"
-                  : "bg-blue-600 text-white hover:bg-blue-500 disabled:bg-blue-400/60"
-              }`}
-            >
-              {submitting ? "Wird gesendet…" : "Termin anfragen"}
-            </button>
+            <section>
+              <StepHeading
+                step={2}
+                title="Termin wählen"
+                description="Datum und verfügbaren Slot bestimmen."
+                isDark={isDark}
+              />
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div>
+                  <label className="text-sm font-medium">Datum</label>
+                  <input
+                    type="date"
+                    className={inputClass}
+                    value={date}
+                    onChange={(event) => setDate(event.target.value)}
+                    style={{ colorScheme: theme }}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-sm font-medium">Uhrzeit auswählen</label>
+                  {loadingSlots ? (
+                    <p className="mt-2 text-sm text-neutral-400">Slots werden geladen…</p>
+                  ) : (
+                    <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {slots.length === 0 && (
+                        <p className="col-span-4 text-sm text-neutral-400">Keine Slots verfügbar.</p>
+                      )}
+                      {slots.map((slot, index) => {
+                        const isActive = selectedTime === slot.time;
+                        const indexClass = isDark
+                          ? isActive
+                            ? "text-blue-300"
+                            : "text-neutral-400"
+                          : isActive
+                            ? "text-blue-600"
+                            : "text-neutral-500";
+                        const timeClass = isDark
+                          ? isActive
+                            ? "text-blue-100"
+                            : "text-neutral-100"
+                          : isActive
+                            ? "text-blue-700"
+                            : "text-neutral-800";
+                        return (
+                          <button
+                            key={slot.time}
+                            type="button"
+                            disabled={slot.disabled}
+                            onClick={() => setSelectedTime(slot.time)}
+                            className={slotButtonClass(slot)}
+                          >
+                            <span className={`text-xs font-semibold tracking-tight ${indexClass}`}>
+                              #{index + 1}
+                            </span>
+                            <span className={`text-sm font-semibold ${timeClass}`}>{slot.time}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <StepHeading
+                step={3}
+                title="Anfrage senden"
+                description="Prüfen Sie Ihre Angaben und senden Sie die Terminanfrage."
+                isDark={isDark}
+              />
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={submit}
+                  disabled={submitting}
+                  className={`rounded-xl px-5 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                    isDark
+                      ? "bg-blue-500 text-white hover:bg-blue-400 disabled:bg-blue-500/60"
+                      : "bg-blue-600 text-white hover:bg-blue-500 disabled:bg-blue-400/60"
+                  }`}
+                >
+                  {submitting ? "Wird gesendet…" : "Termin anfragen"}
+                </button>
+              </div>
+            </section>
           </div>
         </div>
 

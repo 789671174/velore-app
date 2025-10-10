@@ -33,6 +33,26 @@ const DAY_LABELS = [
 
 const createDefaultInterval = (): TimeRange => ({ from: "09:00", to: "17:00" });
 
+const SectionHeading = ({
+  step,
+  title,
+  description,
+}: {
+  step: number;
+  title: string;
+  description?: string;
+}) => (
+  <div className="flex items-start gap-3">
+    <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
+      {step}
+    </span>
+    <div>
+      <h2 className="text-lg font-medium text-neutral-900">{title}</h2>
+      {description ? <p className="text-sm text-neutral-500">{description}</p> : null}
+    </div>
+  </div>
+);
+
 export default function SettingsView({ tenant, business, initialSettings }: Props) {
   const [name, setName] = useState(business.name);
   const [email, setEmail] = useState(business.email ?? "");
@@ -269,7 +289,10 @@ export default function SettingsView({ tenant, business, initialSettings }: Prop
     <div className="mx-auto max-w-5xl space-y-10 px-4 py-10">
       <div>
         <h1 className="text-2xl font-semibold text-neutral-900">Einstellungen – {name || business.name}</h1>
-        <p className="text-sm text-neutral-500">Tenant: {tenant}</p>
+        <p className="text-sm text-neutral-500">
+          Tenant:
+          <code className="ml-1 rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-xs text-neutral-600">{tenant}</code>
+        </p>
       </div>
 
       {error && (
@@ -282,7 +305,7 @@ export default function SettingsView({ tenant, business, initialSettings }: Prop
       )}
 
       <section className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-medium text-neutral-900">Unternehmensprofil</h2>
+        <SectionHeading step={1} title="Unternehmensprofil" />
         <div className="mt-4 grid gap-5 md:grid-cols-2">
           <div>
             <label className="text-sm font-medium text-neutral-700" htmlFor="business-name">
@@ -340,10 +363,7 @@ export default function SettingsView({ tenant, business, initialSettings }: Prop
       </section>
 
       <section className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium text-neutral-900">Arbeitszeiten &amp; Arbeitstage</h2>
-          <p className="text-xs text-neutral-500">Zeiten gelten pro Wochentag.</p>
-        </div>
+        <SectionHeading step={2} title="Arbeitszeiten &amp; Arbeitstage" description="Zeiten gelten pro Wochentag." />
         <div className="mt-4 space-y-4">
           {DAY_LABELS.map((label, index) => {
             const isActive = workDays.includes(index);
@@ -358,7 +378,12 @@ export default function SettingsView({ tenant, business, initialSettings }: Prop
                       onChange={() => toggleDay(index)}
                       className="h-4 w-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
                     />
-                    {label}
+                    <span className="flex items-center gap-2">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 font-mono text-xs font-semibold text-blue-600">
+                        {index}
+                      </span>
+                      {label}
+                    </span>
                   </label>
                   {isActive && (
                     <button
@@ -408,7 +433,7 @@ export default function SettingsView({ tenant, business, initialSettings }: Prop
       </section>
 
       <section className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-medium text-neutral-900">Ferienzeiten</h2>
+        <SectionHeading step={3} title="Ferienzeiten" />
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <div>
             <label className="text-sm font-medium text-neutral-700" htmlFor="vacation-start">
@@ -484,7 +509,7 @@ export default function SettingsView({ tenant, business, initialSettings }: Prop
       </section>
 
       <section className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-medium text-neutral-900">Feiertage</h2>
+        <SectionHeading step={4} title="Feiertage" />
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <div>
             <label className="text-sm font-medium text-neutral-700" htmlFor="holiday-date">
@@ -548,7 +573,7 @@ export default function SettingsView({ tenant, business, initialSettings }: Prop
       </section>
 
       <section className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-medium text-neutral-900">Allgemeine Einstellungen</h2>
+        <SectionHeading step={5} title="Allgemeine Einstellungen" />
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <div>
             <label className="text-sm font-medium text-neutral-700" htmlFor="slot-minutes">
