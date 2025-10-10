@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { ensureTenantWithSettings } from "@/lib/tenant";
 import { buildTimeSlots } from "@/lib/time";
 import { bookingSchema } from "@/lib/validators/booking";
 import { ZodError } from "zod";
@@ -14,10 +15,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     const data = await request.json();
     const payload = bookingSchema.parse({ ...data, tenant: params.tenant });
 
-    const tenant = await prisma.tenant.findUnique({
-      where: { slug: params.tenant },
-      include: { settings: true },
-    });
+    const tenant = await ensureTenantWithSettings(params.tenant);
 
     if (!tenant || !tenant.settings) {
       return NextResponse.json({ message: "Tenant not found" }, { status: 404 });

@@ -1,8 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -30,11 +30,13 @@ interface BookingListProps {
 }
 
 export function BookingList({ tenant, bookings }: BookingListProps) {
-  const queryClient = useQueryClient();
   const router = useRouter();
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
-  const mutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: "confirmed" | "cancelled" }) => {
+  const updateBooking = async (id: string, status: "confirmed" | "cancelled") => {
+    setPendingId(`${id}-${status}`);
+
+    try {
       const res = await fetch(`/api/tenant/${tenant}/booking/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -46,17 +48,16 @@ export function BookingList({ tenant, bookings }: BookingListProps) {
         throw new Error(payload.message ?? "Aktualisierung fehlgeschlagen");
       }
 
-      return res.json();
-    },
-    onSuccess: () => {
       toast.success("Buchung aktualisiert");
-      queryClient.invalidateQueries({ queryKey: ["bookings", tenant] });
       router.refresh();
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-  });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Aktualisierung fehlgeschlagen");
+    } finally {
+      setPendingId(null);
+    }
+  };
+
+  const isPending = (id: string, status: "confirmed" | "cancelled") => pendingId === `${id}-${status}`;
 
   return (
     <Card>
@@ -67,11 +68,13 @@ export function BookingList({ tenant, bookings }: BookingListProps) {
       <CardContent className="space-y-4">
         {bookings.length === 0 && <p className="text-sm text-muted-foreground">Keine Buchungen vorhanden.</p>}
         {bookings.map((booking) => (
-          <div key={booking.id} className="flex flex-col gap-3 rounded-lg border p-4 md:flex-row md:items-center md:justify-between">
+          <div
+            key={booking.id}
+            className="flex flex-col gap-3 rounded-lg border p-4 md:flex-row md:items-center md:justify-between"
+          >
             <div>
               <p className="font-medium">
-                {format(new Date(`${booking.date}T${booking.startTime}`), "dd.MM.yyyy HH:mm", { locale: de })} –
-                {" "}
+                {format(new Date(`${booking.date}T${booking.startTime}`), "dd.MM.yyyy HH:mm", { locale: de })} –{" "}
                 {format(new Date(`${booking.date}T${booking.endTime}`), "HH:mm", { locale: de })}
               </p>
               <p className="text-sm text-muted-foreground">
@@ -99,8 +102,8 @@ export function BookingList({ tenant, bookings }: BookingListProps) {
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={mutation.isPending}
-                  onClick={() => mutation.mutate({ id: booking.id, status: "confirmed" })}
+                  disabled={isPending(booking.id, "confirmed")}
+                  onClick={() => updateBooking(booking.id, "confirmed")}
                 >
                   Bestätigen
                 </Button>
@@ -110,8 +113,8 @@ export function BookingList({ tenant, bookings }: BookingListProps) {
                   size="sm"
                   variant="ghost"
                   className="text-destructive hover:text-destructive"
-                  disabled={mutation.isPending}
-                  onClick={() => mutation.mutate({ id: booking.id, status: "cancelled" })}
+                  disabled={isPending(booking.id, "cancelled")}
+                  onClick={() => updateBooking(booking.id, "cancelled")}
                 >
                   Absagen
                 </Button>

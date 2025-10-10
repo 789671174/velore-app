@@ -13,14 +13,7 @@
     "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
-    "@hookform/resolvers": "3.3.4",
     "@prisma/client": "5.17.0",
-    "@radix-ui/react-dialog": "1.0.5",
-    "@radix-ui/react-label": "2.0.2",
-    "@radix-ui/react-popover": "1.0.7",
-    "@radix-ui/react-slot": "1.0.3",
-    "@radix-ui/react-toast": "1.1.5",
-    "@tanstack/react-query": "5.51.1",
     "class-variance-authority": "0.7.0",
     "clsx": "2.1.1",
     "date-fns": "3.6.0",

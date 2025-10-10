@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function HomePage() {
   return (
@@ -14,12 +15,15 @@ export default function HomePage() {
         </p>
       </div>
       <div className="flex flex-wrap justify-center gap-4">
-        <Button asChild size="lg">
-          <Link href="/booking">Termin buchen</Link>
-        </Button>
-        <Button asChild size="lg" variant="outline">
-          <Link href="/t/velora-hairstyles/entrepreneur">Zum Dashboard</Link>
-        </Button>
+        <Link href="/booking" className={cn(buttonVariants({ size: "lg" }))}>
+          Termin buchen
+        </Link>
+        <Link
+          href="/t/velora-hairstyles/entrepreneur"
+          className={cn(buttonVariants({ size: "lg", variant: "outline" }))}
+        >
+          Zum Dashboard
+        </Link>
       </div>
     </section>
   );

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { BusinessSettingsForm } from "@/components/settings/BusinessSettingsForm";
-import { prisma } from "@/lib/prisma";
+import { ensureTenantWithSettings } from "@/lib/tenant";
 import { settingsSchema } from "@/lib/validators/settings";
 
 interface SettingsPageProps {
@@ -9,10 +9,7 @@ interface SettingsPageProps {
 }
 
 export default async function SettingsPage({ params }: SettingsPageProps) {
-  const tenant = await prisma.tenant.findUnique({
-    where: { slug: params.tenant },
-    include: { settings: true },
-  });
+  const tenant = await ensureTenantWithSettings(params.tenant);
 
   if (!tenant || !tenant.settings) {
     notFound();
@@ -28,6 +25,16 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
     holidays: (tenant.settings.holidays as string[]) ?? [],
   });
 
+  const orderedHours = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) =>
+    parsed.businessHours.find((item) => item.day === day) ?? {
+      day: day as (typeof parsed.businessHours)[number]["day"],
+      enabled: false,
+      open: "09:00",
+      close: "17:00",
+      breaks: [],
+    },
+  );
+
   return (
     <div className="space-y-6">
       <div className="space-y-1">
@@ -36,7 +43,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           Passe Öffnungszeiten, Sondertage und Unternehmensdaten für {tenant.name} an.
         </p>
       </div>
-      <BusinessSettingsForm tenant={tenant.slug} initialData={parsed} />
+      <BusinessSettingsForm tenant={tenant.slug} initialData={{ ...parsed, businessHours: orderedHours }} />
     </div>
   );
 }

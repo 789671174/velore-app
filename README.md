@@ -1,6 +1,6 @@
 # Velore Booking Platform
 
-Next.js 14 App Router project for multi-tenant salon scheduling with Prisma + Postgres, TailwindCSS, shadcn/ui, React Hook Form, Zod, React Query, Zustand-ready data stores, and react-day-picker.
+Next.js 14 App Router project for multi-tenant salon scheduling with Prisma + Postgres, TailwindCSS, shadcn/ui, React Hook Form, Zod, Zustand-ready data stores, and react-day-picker.
 
 ## Features
 
@@ -24,7 +24,6 @@ Next.js 14 App Router project for multi-tenant salon scheduling with Prisma + Po
 - TypeScript + React
 - Tailwind CSS with shadcn/ui components
 - React Hook Form + Zod
-- React Query
 - Prisma ORM with PostgreSQL
 - Sonner toasts, react-day-picker calendar
 
@@ -102,4 +101,4 @@ Generate after running locally (light/dark):
 
 - Time slots obey configured hours, breaks, and holidays; past days disabled.
 - Booking conflicts prevented server-side.
-- React Query providers prepared for future live updates.
+- Server-rendered data with optimistic client refresh flows prepared for future live updates.

@@ -5,7 +5,6 @@ import { de } from "date-fns/locale";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { zodResolver } from "@hookform/resolvers/zod";
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -15,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { zodResolver } from "@/lib/resolvers/zod";
 import { buildTimeSlots, type BusinessHour } from "@/lib/time";
 import { bookingSchema, type BookingInput } from "@/lib/validators/booking";
 
@@ -53,14 +53,27 @@ export function BookingForm({ tenant, businessName, businessHours, holidays }: B
   });
 
   const dateValue = watch("date");
-  const selectedDate = useMemo(() => parseISO(dateValue), [dateValue]);
+  const selectedDate = useMemo(() => {
+    if (!dateValue) {
+      return new Date();
+    }
+
+    const parsed = parseISO(dateValue);
+    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  }, [dateValue]);
 
   const selectedStartTime = watch("startTime");
 
   const timeSlots = useMemo(() => {
-    return buildTimeSlots(selectedDate, businessHours, holidays).filter((slot) =>
-      isSameDay(slot.start, selectedDate) ? !isBefore(slot.start, new Date()) : true,
-    );
+    const now = new Date();
+
+    return buildTimeSlots(selectedDate, businessHours, holidays).filter((slot) => {
+      if (!isSameDay(slot.start, selectedDate)) {
+        return true;
+      }
+
+      return !isBefore(slot.start, now);
+    });
   }, [selectedDate, businessHours, holidays]);
 
   const onSubmit = async (data: BookingInput) => {
@@ -176,8 +189,14 @@ export function BookingForm({ tenant, businessName, businessHours, holidays }: B
                   key={slot.label}
                   type="button"
                   onClick={() => {
-                    setValue("startTime", format(slot.start, "HH:mm"), { shouldValidate: true });
-                    setValue("endTime", format(slot.end, "HH:mm"), { shouldValidate: true });
+                    setValue("startTime", format(slot.start, "HH:mm"), {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                    });
+                    setValue("endTime", format(slot.end, "HH:mm"), {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                    });
                   }}
                   className={cn(
                     "rounded-md border px-3 py-2 text-left text-sm transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",

@@ -1,17 +1,38 @@
 /* eslint-disable no-console */
 import { BookingStatus, PrismaClient } from "@prisma/client";
 
+import { DEFAULT_BUSINESS_HOURS } from "../src/lib/defaults";
+
 const prisma = new PrismaClient();
 
-const HOURS = [
-  { day: "Mon", enabled: true, open: "09:00", close: "18:00", breaks: [{ start: "12:30", end: "13:00" }] },
-  { day: "Tue", enabled: true, open: "09:00", close: "18:00", breaks: [{ start: "12:30", end: "13:00" }] },
-  { day: "Wed", enabled: true, open: "09:00", close: "18:00", breaks: [{ start: "12:30", end: "13:00" }] },
-  { day: "Thu", enabled: true, open: "09:00", close: "20:00", breaks: [{ start: "14:00", end: "14:30" }] },
-  { day: "Fri", enabled: true, open: "09:00", close: "18:00", breaks: [] },
-  { day: "Sat", enabled: false, open: "09:00", close: "14:00", breaks: [] },
-  { day: "Sun", enabled: false, open: "09:00", close: "14:00", breaks: [] },
-];
+const HOURS = DEFAULT_BUSINESS_HOURS.map((day) => {
+  const base = { ...day, breaks: day.breaks?.map((pause) => ({ ...pause })) ?? [] };
+
+  if (["Mon", "Tue", "Wed"].includes(base.day)) {
+    return {
+      ...base,
+      breaks: [{ start: "12:30", end: "13:00" }],
+    };
+  }
+
+  if (base.day === "Thu") {
+    return {
+      ...base,
+      open: "09:00",
+      close: "20:00",
+      breaks: [{ start: "14:00", end: "14:30" }],
+    };
+  }
+
+  if (["Sat", "Sun"].includes(base.day)) {
+    return {
+      ...base,
+      enabled: false,
+    };
+  }
+
+  return base;
+});
 
 async function main() {
   const tenant = await prisma.tenant.upsert({

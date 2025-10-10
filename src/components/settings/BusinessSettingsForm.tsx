@@ -4,17 +4,16 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { zodResolver } from "@hookform/resolvers/zod";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { getWeekdayLabel } from "@/lib/time";
+import { zodResolver } from "@/lib/resolvers/zod";
 import { settingsSchema, type SettingsInput } from "@/lib/validators/settings";
 
 interface BusinessSettingsFormProps {
@@ -35,7 +34,23 @@ export function BusinessSettingsForm({ tenant, initialData }: BusinessSettingsFo
     name: "businessHours",
   });
 
-  const holidaysArray = useFieldArray({ control: form.control, name: "holidays", keyName: "key" });
+  const holidays = form.watch("holidays");
+
+  const handleHolidaysChange = (days: Date[] | undefined) => {
+    const values = Array.from(
+      new Set((days ?? []).map((day) => format(day as Date, "yyyy-MM-dd"))),
+    ).sort();
+
+    form.setValue("holidays", values, { shouldDirty: true, shouldValidate: true });
+  };
+
+  const removeHoliday = (value: string) => {
+    form.setValue(
+      "holidays",
+      (holidays ?? []).filter((holiday) => holiday !== value),
+      { shouldDirty: true, shouldValidate: true },
+    );
+  };
 
   const onSubmit = async (values: SettingsInput) => {
     const res = await fetch(`/api/tenant/${tenant}/settings`, {
@@ -103,6 +118,7 @@ export function BusinessSettingsForm({ tenant, initialData }: BusinessSettingsFo
             }
 
             const item = fields[fieldIndex];
+            const dayErrors = form.formState.errors.businessHours?.[fieldIndex];
             return (
               <div key={day} className="grid gap-4 rounded-lg border p-4">
                 <div className="flex flex-wrap items-center justify-between gap-4">
@@ -142,6 +158,9 @@ export function BusinessSettingsForm({ tenant, initialData }: BusinessSettingsFo
                         })
                       }
                     />
+                    {dayErrors?.open && (
+                      <p className="text-sm text-destructive">{dayErrors.open.message}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Schließt</Label>
@@ -157,6 +176,9 @@ export function BusinessSettingsForm({ tenant, initialData }: BusinessSettingsFo
                         })
                       }
                     />
+                    {dayErrors?.close && (
+                      <p className="text-sm text-destructive">{dayErrors.close.message}</p>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -229,52 +251,43 @@ export function BusinessSettingsForm({ tenant, initialData }: BusinessSettingsFo
           <CardTitle>3 · Feiertage & Abwesenheiten</CardTitle>
           <CardDescription>Pflege besondere Tage, an denen keine Buchungen möglich sind.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button type="button" variant="outline">
-                  Feiertag auswählen
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="multiple"
-                  selected={holidaysArray.fields.map((field) => new Date(field.value))}
-                  onSelect={(days) => {
-                    const values = Array.from(
-                      new Set((days ?? []).map((day) => format(day as Date, "yyyy-MM-dd"))),
-                    );
-                    holidaysArray.replace(values);
-                  }}
-                  locale={de}
-                />
-              </PopoverContent>
-            </Popover>
-            <span className="text-sm text-muted-foreground">
-              {holidaysArray.fields.length} Tage ausgewählt
-            </span>
+        <CardContent className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-[320px_1fr]">
+            <div className="space-y-3">
+              <Calendar
+                mode="multiple"
+                selected={(holidays ?? []).map((day) => new Date(day))}
+                onSelect={handleHolidaysChange}
+                locale={de}
+              />
+              <p className="text-sm text-muted-foreground">
+                {(holidays ?? []).length} Tage ausgewählt
+              </p>
+            </div>
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Ausgewählte Tage</p>
+              <div className="flex flex-wrap gap-2">
+                {(holidays ?? []).map((value) => (
+                  <span key={value} className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm">
+                    {format(new Date(value), "dd.MM.yyyy", { locale: de })}
+                    <button
+                      type="button"
+                      className="text-muted-foreground transition hover:text-destructive"
+                      onClick={() => removeHoliday(value)}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                {(holidays ?? []).length === 0 && (
+                  <p className="text-sm text-muted-foreground">Noch keine Sondertage hinterlegt.</p>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {holidaysArray.fields.map((field, index) => (
-              <span
-                key={field.key}
-                className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm"
-              >
-                {format(new Date(field.value), "dd.MM.yyyy", { locale: de })}
-                <button
-                  type="button"
-                  className="text-muted-foreground transition hover:text-destructive"
-                  onClick={() => holidaysArray.remove(index)}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-            {holidaysArray.fields.length === 0 && (
-              <p className="text-sm text-muted-foreground">Noch keine Sondertage hinterlegt.</p>
-            )}
-          </div>
+          {form.formState.errors.holidays && (
+            <p className="text-sm text-destructive">{form.formState.errors.holidays.message as string}</p>
+          )}
         </CardContent>
       </Card>
 

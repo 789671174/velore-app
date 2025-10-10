@@ -1,24 +1,31 @@
 import { notFound } from "next/navigation";
 
 import { BookingForm } from "@/components/booking/BookingForm";
-import { prisma } from "@/lib/prisma";
+import { ensureTenantWithSettings } from "@/lib/tenant";
+import { type BusinessHour } from "@/lib/time";
+import { settingsSchema } from "@/lib/validators/settings";
 
 const DEFAULT_TENANT = "velora-hairstyles";
 
+const bookingSettingsSchema = settingsSchema.pick({
+  businessName: true,
+  businessHours: true,
+  holidays: true,
+});
+
 export default async function BookingPage({ searchParams }: { searchParams: { tenant?: string } }) {
   const tenantSlug = searchParams?.tenant ?? DEFAULT_TENANT;
-  const tenant = await prisma.tenant.findUnique({
-    where: { slug: tenantSlug },
-    include: {
-      settings: true,
-    },
-  });
+  const tenant = await ensureTenantWithSettings(tenantSlug);
 
   if (!tenant || !tenant.settings) {
     notFound();
   }
 
-  const { businessName, businessHours, holidays } = tenant.settings;
+  const { businessName, businessHours, holidays } = bookingSettingsSchema.parse({
+    businessName: tenant.settings.businessName,
+    businessHours: tenant.settings.businessHours,
+    holidays: (tenant.settings.holidays as string[]) ?? [],
+  });
 
   return (
     <div className="mx-auto max-w-4xl space-y-10">
@@ -31,8 +38,8 @@ export default async function BookingPage({ searchParams }: { searchParams: { te
       <BookingForm
         tenant={tenant.slug}
         businessName={businessName}
-        businessHours={businessHours as any}
-        holidays={(holidays as string[]) ?? []}
+        businessHours={businessHours as BusinessHour[]}
+        holidays={holidays}
       />
     </div>
   );
