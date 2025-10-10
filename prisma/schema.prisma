@@ -12,7 +12,9 @@ model Business {
   slug        String   @unique
   name        String
   domain      String?
+  email       String?
   logoDataUrl String?
+  timezone    String  @default("Europe/Zurich")
   createdAt   DateTime @default(now())
 
   bookings Booking[]
@@ -54,7 +56,10 @@ model Settings {
   businessId String   @unique
   business   Business @relation(fields: [businessId], references: [id])
 
-  slotMinutes   Int    @default(30)
-  bufferMinutes Int    @default(0)
-  hoursJson     String @default("{}")
+  slotMinutes       Int    @default(30)
+  bufferMinutes     Int    @default(0)
+  hoursJson         String @default("{}")
+  workDaysJson      String @default("[]")
+  vacationDaysJson  String @default("[]")
+  bookingNotes      String?
 }
