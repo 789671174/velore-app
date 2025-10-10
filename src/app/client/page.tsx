@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Slot = {
   time: string;
@@ -21,6 +21,11 @@ type Feedback = {
 };
 
 const TODAY = new Date().toISOString().slice(0, 10);
+const DEFAULT_TENANT = process.env.NEXT_PUBLIC_DEFAULT_TENANT ?? "default";
+
+function normalizeTenant(raw: string | null) {
+  return (raw ?? "").trim().toLowerCase();
+}
 
 function StepHeading({
   step,
@@ -52,33 +57,70 @@ function StepHeading({
   );
 }
 
+function ThemeToggle({ theme, onToggle }: { theme: "light" | "dark"; onToggle: (next: "light" | "dark") => void }) {
+  const next = theme === "dark" ? "light" : "dark";
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(next)}
+      className="inline-flex items-center gap-2 rounded-full border border-neutral-400 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-600 dark:text-neutral-200 dark:hover:bg-neutral-800"
+    >
+      <span aria-hidden>🌓</span>
+      <span>{theme === "dark" ? "Helles Design" : "Dunkles Design"}</span>
+    </button>
+  );
+}
+
+function formatDate(date: string) {
+  try {
+    return new Date(date).toLocaleDateString("de-CH", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  } catch (error) {
+    return date;
+  }
+}
+
 export default function ClientPage() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const isDark = theme === "dark";
 
-  const [date, setDate] = useState(TODAY);
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [slots, setSlots] = useState<Slot[]>([]);
-  const [loadingSlots, setLoadingSlots] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [feedback, setFeedback] = useState<Feedback | null>(null);
-
-  const [companyName, setCompanyName] = useState("Velora");
+  const [tenant, setTenant] = useState(DEFAULT_TENANT);
+  const [companyName, setCompanyName] = useState("Velore");
   const [companyEmail, setCompanyEmail] = useState<string | null>(null);
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
   const [bookingNotes, setBookingNotes] = useState<string | null>(null);
 
+  const [date, setDate] = useState(TODAY);
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const slotList = useMemo(() => slots.map((slot, index) => ({ ...slot, index: index + 1 })), [slots]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem("velore-theme");
-    if (stored === "light" || stored === "dark") {
-      setTheme(stored);
+    const storedTheme = window.localStorage.getItem("velore-theme");
+    if (storedTheme === "light" || storedTheme === "dark") {
+      setTheme(storedTheme);
     } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
       setTheme("dark");
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const slug = normalizeTenant(params.get("t"));
+    if (slug) {
+      setTenant(slug);
     }
   }, []);
 
@@ -95,55 +137,70 @@ export default function ClientPage() {
     };
   }, [theme]);
 
+  const settingsQuery = useMemo(() => (tenant ? `?t=${encodeURIComponent(tenant)}` : ""), [tenant]);
+
   useEffect(() => {
+    let ignore = false;
     async function loadSettings() {
       try {
-        const res = await fetch("/api/settings");
+        const res = await fetch(`/api/settings${settingsQuery}`);
         if (!res.ok) throw new Error(await res.text());
         const data = (await res.json()) as SettingsResponse;
-        setCompanyName(data.name || "Velora");
+        if (ignore) return;
+        setTenant(normalizeTenant(data.tenant) || DEFAULT_TENANT);
+        setCompanyName(data.name || "Velore");
         setCompanyEmail(data.email ?? null);
         setCompanyLogo(data.logoDataUrl ?? null);
         setBookingNotes(data.bookingNotes ?? null);
-      } catch (err) {
-        console.error("Settings could not be loaded", err);
+      } catch (error) {
+        if (!ignore) {
+          console.error("Settings could not be loaded", error);
+        }
       }
     }
 
     loadSettings();
-  }, []);
+    return () => {
+      ignore = true;
+    };
+  }, [settingsQuery]);
+
+  const refreshSlots = useCallback(
+    async (targetDate: string) => {
+      setLoadingSlots(true);
+      try {
+        const res = await fetch(`/api/slots${settingsQuery}${settingsQuery ? "&" : "?"}date=${targetDate}`);
+        if (!res.ok) throw new Error(await res.text());
+        const body = await res.json();
+        const rawSlots: unknown = body?.slots ?? body;
+        const normalized: Slot[] = Array.isArray(rawSlots)
+          ? rawSlots.map((entry) =>
+              typeof entry === "string"
+                ? { time: entry }
+                : { time: (entry as Slot).time, disabled: Boolean((entry as Slot).disabled) },
+            )
+          : [];
+        setSlots(normalized);
+        if (!normalized.some((slot) => slot.time === selectedTime)) {
+          setSelectedTime(null);
+        }
+      } catch (error: any) {
+        console.error("Slots could not be loaded", error);
+        setSlots([]);
+        setFeedback({
+          type: "error",
+          message: `Termine konnten nicht geladen werden: ${error?.message ?? error}`,
+        });
+      } finally {
+        setLoadingSlots(false);
+      }
+    },
+    [selectedTime, settingsQuery],
+  );
 
   useEffect(() => {
     refreshSlots(date);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date]);
-
-  const refreshSlots = async (nextDate: string) => {
-    setLoadingSlots(true);
-    try {
-      const res = await fetch(`/api/slots?date=${nextDate}`);
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      const rawSlots: unknown = data?.slots ?? data;
-      const normalized: Slot[] = Array.isArray(rawSlots)
-        ? rawSlots.map((entry) =>
-            typeof entry === "string"
-              ? { time: entry }
-              : { time: (entry as Slot).time, disabled: (entry as Slot).disabled },
-          )
-        : [];
-      setSlots(normalized);
-      if (normalized.every((slot) => slot.time !== selectedTime)) {
-        setSelectedTime(null);
-      }
-    } catch (err: any) {
-      console.error("Slots could not be loaded", err);
-      setFeedback({ type: "error", message: `Termine konnten nicht geladen werden: ${err?.message ?? err}` });
-      setSlots([]);
-    } finally {
-      setLoadingSlots(false);
-    }
-  };
+  }, [date, refreshSlots]);
 
   const submit = async () => {
     if (!selectedTime) {
@@ -159,7 +216,7 @@ export default function ClientPage() {
     setFeedback(null);
 
     try {
-      const res = await fetch("/api/bookings", {
+      const res = await fetch(`/api/bookings${settingsQuery}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -173,261 +230,185 @@ export default function ClientPage() {
       });
 
       if (!res.ok) {
-        throw new Error(await res.text());
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error?.error ?? "Unbekannter Fehler");
       }
 
-      const booking = await res.json();
-      setFeedback({ type: "success", message: `Termin angefragt! Referenz: ${booking.id}` });
+      setFeedback({ type: "success", message: "Termin wurde erfolgreich reserviert." });
+      setFirstName("");
+      setLastName("");
+      setEmail("");
+      setPhone("");
       setSelectedTime(null);
       refreshSlots(date);
-    } catch (err: any) {
-      setFeedback({ type: "error", message: `Die Anfrage konnte nicht gesendet werden: ${err?.message ?? err}` });
+    } catch (error: any) {
+      setFeedback({
+        type: "error",
+        message: `Termin konnte nicht gespeichert werden: ${error?.message ?? error}`,
+      });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const containerClass = useMemo(() => {
-    const base = "theme-container min-h-screen transition-colors";
-    return isDark ? `${base} bg-[#0b1220] text-neutral-100` : `${base} bg-neutral-50 text-neutral-900`;
-  }, [isDark]);
-
-  const panelClass = useMemo(
-    () =>
-      isDark
-        ? "rounded-2xl border border-neutral-700 bg-[#111a2e] shadow-2xl shadow-black/40"
-        : "rounded-2xl border border-neutral-200 bg-white shadow-xl shadow-black/10",
-    [isDark],
-  );
-
-  const inputClass = useMemo(
-    () =>
-      `w-full rounded-xl px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 ${
-        isDark
-          ? "bg-[#0f172a] border border-neutral-700 text-neutral-100 placeholder-neutral-400 focus:ring-blue-400"
-          : "bg-white border border-neutral-300 text-neutral-900 placeholder-neutral-500 focus:ring-blue-500 focus:ring-offset-1"
-      }`,
-    [isDark],
-  );
-
-  const slotButtonClass = (slot: Slot) => {
-    const base = `flex flex-col gap-1 rounded-xl border px-3 py-2 text-left text-sm transition focus:outline-none focus:ring-2 ${
-      slot.disabled ? "cursor-not-allowed opacity-40" : ""
-    }`;
-    const active = selectedTime === slot.time;
-    if (isDark) {
-      return `${base} ${
-        active
-          ? "border-blue-400 ring-blue-300"
-          : "border-neutral-700 hover:border-blue-400"
-      }`;
-    }
-    return `${base} ${
-      active
-        ? "border-blue-500 ring-blue-300"
-        : "border-neutral-300 hover:border-blue-500"
-    }`;
-  };
-
   return (
-    <div className={containerClass}>
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-6 py-10">
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            {companyLogo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={companyLogo} alt="Logo" className="h-12 w-12 rounded-xl border border-white/20 object-cover" />
-            ) : (
-              <div
-                className={`flex h-12 w-12 items-center justify-center rounded-xl border text-sm ${
-                  isDark ? "border-neutral-700 text-neutral-400" : "border-neutral-200 text-neutral-500"
-                }`}
-              >
-                {companyName.charAt(0).toUpperCase()}
-              </div>
-            )}
-            <div>
-              <h1 className="text-2xl font-semibold">{companyName} – Termin buchen</h1>
-              {bookingNotes && <p className="text-sm text-neutral-400">{bookingNotes}</p>}
-            </div>
+    <div className="min-h-screen bg-neutral-50 transition-colors duration-200 dark:bg-neutral-950">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
+        <header className="flex flex-col-reverse items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-blue-600">Tenant #{tenant}</p>
+            <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{companyName}</h1>
+            {bookingNotes ? (
+              <p className="mt-1 max-w-2xl text-sm text-neutral-600 dark:text-neutral-400">{bookingNotes}</p>
+            ) : null}
           </div>
-          <button
-            type="button"
-            onClick={() => setTheme(isDark ? "light" : "dark")}
-            className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
-              isDark
-                ? "border-neutral-700 bg-[#111a2e] text-neutral-200 hover:border-blue-400"
-                : "border-neutral-200 bg-white text-neutral-700 hover:border-blue-500"
-            }`}
-            aria-pressed={isDark}
-          >
-            {isDark ? "Helles Design" : "Dunkles Design"}
-          </button>
+          <div className="flex items-center gap-4">
+            {companyLogo ? <img src={companyLogo} alt="Unternehmenslogo" className="h-12 w-12 rounded-full object-cover" /> : null}
+            <ThemeToggle theme={theme} onToggle={setTheme} />
+          </div>
         </header>
 
-        {feedback && (
-          <div
-            className={`rounded-xl border px-4 py-3 text-sm ${
-              feedback.type === "success"
-                ? isDark
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
-                  : "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : isDark
-                  ? "border-red-500/40 bg-red-500/10 text-red-200"
-                  : "border-red-200 bg-red-50 text-red-700"
-            }`}
-          >
-            {feedback.message}
+        <section className="grid gap-6 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm transition dark:border-neutral-800 dark:bg-neutral-900">
+          <StepHeading
+            step={1}
+            title="Datum auswählen"
+            description="Wähle zuerst deinen Wunschtag aus."
+            isDark={isDark}
+          />
+          <div className="grid gap-2 sm:grid-cols-2 sm:items-center">
+            <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300" htmlFor="booking-date">
+              Datum
+            </label>
+            <input
+              id="booking-date"
+              type="date"
+              className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+              min={TODAY}
+              value={date}
+              onChange={(event) => setDate(event.target.value)}
+            />
           </div>
-        )}
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">Ausgewählter Tag: {formatDate(date)}</p>
+        </section>
 
-        <div className={`${panelClass} p-6`}>
-          <div className="space-y-8">
-            <section>
-              <StepHeading
-                step={1}
-                title="Persönliche Angaben"
-                description="Wie dürfen wir Sie kontaktieren?"
-                isDark={isDark}
-              />
-              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <label className="text-sm font-medium">Vorname</label>
-                  <input
-                    className={inputClass}
-                    value={firstName}
-                    onChange={(event) => setFirstName(event.target.value)}
-                    placeholder="Max"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Nachname</label>
-                  <input
-                    className={inputClass}
-                    value={lastName}
-                    onChange={(event) => setLastName(event.target.value)}
-                    placeholder="Mustermann"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="text-sm font-medium">E-Mail</label>
-                  <input
-                    type="email"
-                    className={inputClass}
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="max@example.com"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="text-sm font-medium">Telefon (optional)</label>
-                  <input
-                    className={inputClass}
-                    value={phone}
-                    onChange={(event) => setPhone(event.target.value)}
-                    placeholder="+41 44 123 45 67"
-                  />
-                </div>
-              </div>
-            </section>
+        <section className="grid gap-6 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm transition dark:border-neutral-800 dark:bg-neutral-900">
+          <StepHeading
+            step={2}
+            title="Zeitslot wählen"
+            description="Die verfügbaren Termine werden automatisch aktualisiert."
+            isDark={isDark}
+          />
+          <div className="flex flex-wrap gap-3">
+            {loadingSlots ? (
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">Termine werden geladen …</p>
+            ) : slotList.length ? (
+              slotList.map((slot) => {
+                const isActive = slot.time === selectedTime;
+                const baseClass =
+                  "group relative flex min-w-[120px] items-center justify-between rounded-xl border px-4 py-3 text-sm font-medium transition";
+                const activeClass = isActive
+                  ? "border-blue-600 bg-blue-50 text-blue-700 shadow-sm dark:border-blue-400/80 dark:bg-blue-500/10 dark:text-blue-100"
+                  : "border-neutral-300 bg-white text-neutral-700 hover:border-blue-400 hover:bg-blue-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:border-blue-400 dark:hover:bg-blue-500/10";
+                const disabledClass = slot.disabled
+                  ? "cursor-not-allowed border-dashed opacity-60 hover:border-neutral-300 hover:bg-transparent dark:hover:border-neutral-700"
+                  : "cursor-pointer";
 
-            <section>
-              <StepHeading
-                step={2}
-                title="Termin wählen"
-                description="Datum und verfügbaren Slot bestimmen."
-                isDark={isDark}
-              />
-              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div>
-                  <label className="text-sm font-medium">Datum</label>
-                  <input
-                    type="date"
-                    className={inputClass}
-                    value={date}
-                    onChange={(event) => setDate(event.target.value)}
-                    style={{ colorScheme: theme }}
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="text-sm font-medium">Uhrzeit auswählen</label>
-                  {loadingSlots ? (
-                    <p className="mt-2 text-sm text-neutral-400">Slots werden geladen…</p>
-                  ) : (
-                    <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      {slots.length === 0 && (
-                        <p className="col-span-4 text-sm text-neutral-400">Keine Slots verfügbar.</p>
-                      )}
-                      {slots.map((slot, index) => {
-                        const isActive = selectedTime === slot.time;
-                        const indexClass = isDark
-                          ? isActive
-                            ? "text-blue-300"
-                            : "text-neutral-400"
-                          : isActive
-                            ? "text-blue-600"
-                            : "text-neutral-500";
-                        const timeClass = isDark
-                          ? isActive
-                            ? "text-blue-100"
-                            : "text-neutral-100"
-                          : isActive
-                            ? "text-blue-700"
-                            : "text-neutral-800";
-                        return (
-                          <button
-                            key={slot.time}
-                            type="button"
-                            disabled={slot.disabled}
-                            onClick={() => setSelectedTime(slot.time)}
-                            className={slotButtonClass(slot)}
-                          >
-                            <span className={`text-xs font-semibold tracking-tight ${indexClass}`}>
-                              #{index + 1}
-                            </span>
-                            <span className={`text-sm font-semibold ${timeClass}`}>{slot.time}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <StepHeading
-                step={3}
-                title="Anfrage senden"
-                description="Prüfen Sie Ihre Angaben und senden Sie die Terminanfrage."
-                isDark={isDark}
-              />
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="button"
-                  onClick={submit}
-                  disabled={submitting}
-                  className={`rounded-xl px-5 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-                    isDark
-                      ? "bg-blue-500 text-white hover:bg-blue-400 disabled:bg-blue-500/60"
-                      : "bg-blue-600 text-white hover:bg-blue-500 disabled:bg-blue-400/60"
-                  }`}
-                >
-                  {submitting ? "Wird gesendet…" : "Termin anfragen"}
-                </button>
-              </div>
-            </section>
+                return (
+                  <button
+                    type="button"
+                    key={slot.time}
+                    disabled={slot.disabled}
+                    onClick={() => {
+                      if (!slot.disabled) {
+                        setSelectedTime(slot.time);
+                        setFeedback(null);
+                      }
+                    }}
+                    className={`${baseClass} ${activeClass} ${disabledClass}`}
+                  >
+                    <span className="text-xs font-semibold text-neutral-400 dark:text-neutral-500">#{slot.index}</span>
+                    <span>{slot.time} Uhr</span>
+                  </button>
+                );
+              })
+            ) : (
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">Keine Termine verfügbar.</p>
+            )}
           </div>
-        </div>
+        </section>
 
-        <footer className="space-y-2 text-sm text-neutral-500">
-          <p>Wir melden uns schnellstmöglich mit einer Bestätigung.</p>
-          {companyEmail && (
-            <p>
-              Rückfragen an <a className="font-medium text-blue-500" href={`mailto:${companyEmail}`}>{companyEmail}</a>
-            </p>
-          )}
-        </footer>
+        <section className="grid gap-6 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm transition dark:border-neutral-800 dark:bg-neutral-900">
+          <StepHeading
+            step={3}
+            title="Kontaktdaten eintragen"
+            description="Trage deine Daten ein, damit wir dich erreichen können."
+            isDark={isDark}
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="grid gap-1 text-sm">
+              <span className="font-medium text-neutral-700 dark:text-neutral-300">Vorname *</span>
+              <input
+                type="text"
+                value={firstName}
+                onChange={(event) => setFirstName(event.target.value)}
+                className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+              />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="font-medium text-neutral-700 dark:text-neutral-300">Nachname *</span>
+              <input
+                type="text"
+                value={lastName}
+                onChange={(event) => setLastName(event.target.value)}
+                className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+              />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="font-medium text-neutral-700 dark:text-neutral-300">E-Mail *</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+              />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="font-medium text-neutral-700 dark:text-neutral-300">Telefon</span>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+              />
+            </label>
+          </div>
+          {feedback ? (
+            <div
+              className={`rounded-lg border px-4 py-3 text-sm ${
+                feedback.type === "success"
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700/60 dark:bg-emerald-500/10 dark:text-emerald-200"
+                  : "border-red-300 bg-red-50 text-red-700 dark:border-red-700/60 dark:bg-red-500/10 dark:text-red-200"
+              }`}
+            >
+              {feedback.message}
+            </div>
+          ) : null}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {companyEmail ? (
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Fragen? Schreibe uns an <a className="text-blue-600 underline" href={`mailto:${companyEmail}`}>{companyEmail}</a>
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={submit}
+              disabled={submitting}
+              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-400"
+            >
+              {submitting ? "Speichern …" : "Termin bestätigen"}
+            </button>
+          </div>
+        </section>
       </div>
     </div>
   );

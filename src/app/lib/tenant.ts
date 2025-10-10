@@ -1,46 +1,57 @@
 import "server-only";
+
 import { prisma } from "@/app/lib/prisma";
 import {
   DEFAULT_HOURS,
   DEFAULT_WORK_DAYS,
-  safeParseJson,
   normalizeHours,
   normalizeWorkDays,
+  safeParseJson,
 } from "@/app/lib/settings";
+
+const FALLBACK_TENANT = "default";
+
+function normalizeSlug(raw: string | null | undefined) {
+  return (raw ?? "").trim().toLowerCase();
+}
 
 export function getTenantFromRequest(req: Request): string | null {
   try {
     const url = new URL(req.url);
-    const slug = url.searchParams.get("t");
-    if (slug) return slug;
+    const querySlug = normalizeSlug(url.searchParams.get("t"));
+    if (querySlug) return querySlug;
   } catch (error) {
-    // ignore invalid URL errors and fall back to headers / env
+    // Invalid URLs should not crash tenant resolution – fall through to headers/env.
   }
-  const headerSlug = (req.headers.get("x-tenant") || "").trim();
+
+  const headerSlug = normalizeSlug(req.headers.get("x-tenant"));
   if (headerSlug) return headerSlug;
-  const envSlug = (process.env.DEFAULT_TENANT || "").trim();
-  return envSlug || null;
+
+  const envSlug = normalizeSlug(process.env.DEFAULT_TENANT);
+  if (envSlug) return envSlug;
+
+  return null;
 }
 
 export async function resolveBusiness(tenant?: string | null) {
-  const slug = (tenant || process.env.DEFAULT_TENANT || "").toLowerCase().trim();
+  const slug = normalizeSlug(tenant ?? process.env.DEFAULT_TENANT ?? FALLBACK_TENANT);
   if (!slug) return null;
   return prisma.business.findUnique({ where: { slug } });
 }
 
 export function getTenantSlug(searchParams?: { t?: string | string[] }) {
   const tParam = Array.isArray(searchParams?.t) ? searchParams?.t[0] : searchParams?.t;
-  const querySlug = (tParam ?? "").trim();
-  if (querySlug) return querySlug.toLowerCase();
+  const querySlug = normalizeSlug(tParam);
+  if (querySlug) return querySlug;
 
-  const envSlug = (process.env.DEFAULT_TENANT ?? "").trim();
-  if (envSlug) return envSlug.toLowerCase();
+  const envSlug = normalizeSlug(process.env.DEFAULT_TENANT);
+  if (envSlug) return envSlug;
 
-  return "default";
+  return FALLBACK_TENANT;
 }
 
 export async function ensureBusinessWithSettings(slug: string) {
-  const normalizedSlug = slug.trim().toLowerCase() || "default";
+  const normalizedSlug = normalizeSlug(slug) || FALLBACK_TENANT;
 
   let business = await prisma.business.findUnique({ where: { slug: normalizedSlug } });
   if (!business) {
@@ -70,9 +81,9 @@ export async function ensureBusinessWithSettings(slug: string) {
     });
   }
 
-  // Ensure settings JSON blobs are normalized so the entrepreneur UI always receives valid data
   const workDays = normalizeWorkDays(safeParseJson(settings.workDaysJson, DEFAULT_WORK_DAYS));
   const hours = normalizeHours(safeParseJson(settings.hoursJson, DEFAULT_HOURS));
+
   const normalizedSettings = await prisma.settings.update({
     where: { id: settings.id },
     data: {
