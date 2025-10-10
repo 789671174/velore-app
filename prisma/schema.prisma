@@ -3,63 +3,69 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite" 
-  url     = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-model Business {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  name        String
-  domain      String?
-  email       String?
-  logoDataUrl String?
-  timezone    String  @default("Europe/Zurich")
-  createdAt   DateTime @default(now())
-
-  bookings Booking[]
-  holidays Holiday[]
-  settings Settings?
+enum BookingStatus {
+  pending
+  confirmed
+  cancelled
 }
 
-model Booking {
-  id         String   @id @default(cuid())
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id])
+model Tenant {
+  id        String     @id @default(uuid())
+  name      String
+  slug      String     @unique
+  createdAt DateTime   @default(now())
 
+  settings  Settings?
+  customers Customer[]
+  bookings  Booking[]
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId  String
   firstName String
   lastName  String
-  email     String
   phone     String?
-  date      DateTime
-  time      String
-  status    String   @default("pending")
+  email     String
   createdAt DateTime @default(now())
 
-  @@index([businessId, date, time])
-}
+  bookings Booking[]
 
-model Holiday {
-  id         String   @id @default(cuid())
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id])
-
-  date      String
-  reason    String?
-  createdAt DateTime @default(now())
-
-  @@index([businessId, date])
+  @@unique([email, tenantId], name: "email_tenantId")
 }
 
 model Settings {
-  id         String   @id @default(cuid())
-  businessId String   @unique
-  business   Business @relation(fields: [businessId], references: [id])
+  id            String   @id @default(uuid())
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId      String   @unique
+  businessName  String
+  email         String
+  phone         String?
+  address       String?
+  notes         String?
+  businessHours Json
+  holidays      Json
+  updatedAt     DateTime @updatedAt
+}
 
-  slotMinutes       Int    @default(30)
-  bufferMinutes     Int    @default(0)
-  hoursJson         String @default("{}")
-  workDaysJson      String @default("[]")
-  vacationDaysJson  String @default("[]")
-  bookingNotes      String?
+model Booking {
+  id         String        @id @default(uuid())
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId   String
+  customer   Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId String
+  date       String
+  startTime  String
+  endTime    String
+  status     BookingStatus @default(pending)
+  notes      String?
+  createdAt  DateTime      @default(now())
+
+  @@index([tenantId, date])
+  @@index([tenantId, status])
 }

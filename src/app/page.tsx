@@ -1,1 +1,26 @@
-import Link from "next/link"; export default function Home(){return(<main className="min-h-screen flex items-center justify-center p-8"><div className="max-w-xl w-full space-y-4 text-center"><h1 className="text-2xl font-bold">Velora – Starter</h1><p className="opacity-75">Wähle eine Seite:</p><div className="flex gap-3 justify-center"><Link href="/client" className="px-4 py-2 rounded-xl border">Kundenseite</Link><Link href="/entrepreneur" className="px-4 py-2 rounded-xl border">Unternehmer</Link></div></div></main>);}
+import Link from "next/link";
+
+import { Button } from "@/components/ui/button";
+
+export default function HomePage() {
+  return (
+    <section className="space-y-10 text-center">
+      <div className="mx-auto max-w-2xl space-y-4">
+        <p className="text-sm uppercase tracking-wide text-muted-foreground">Salon SaaS</p>
+        <h1 className="text-4xl font-bold sm:text-5xl">Dein moderner Terminplaner</h1>
+        <p className="text-lg text-muted-foreground">
+          Verwalte Buchungen, Öffnungszeiten und Feiertage in einer Plattform. Multi-Tenant ready
+          für dein Team.
+        </p>
+      </div>
+      <div className="flex flex-wrap justify-center gap-4">
+        <Button asChild size="lg">
+          <Link href="/booking">Termin buchen</Link>
+        </Button>
+        <Button asChild size="lg" variant="outline">
+          <Link href="/t/velora-hairstyles/entrepreneur">Zum Dashboard</Link>
+        </Button>
+      </div>
+    </section>
+  );
+}

@@ -3,25 +3,80 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light dark;
+  --background: 0 0% 100%;
+  --foreground: 224 71.4% 4.1%;
+
+  --muted: 223 47.4% 96.9%;
+  --muted-foreground: 223 8.9% 46.1%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 224 71.4% 4.1%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 224 71.4% 4.1%;
+
+  --border: 223 9.1% 74.9%;
+  --input: 223 9.1% 74.9%;
+
+  --primary: 262.1 83.3% 57.8%;
+  --primary-foreground: 210 20% 98%;
+
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 20% 98%;
+
+  --ring: 262.1 83.3% 57.8%;
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 20% 98%;
+
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 20% 98%;
+
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 20% 98%;
+
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+
+  --primary: 263.4 70% 50.4%;
+  --primary-foreground: 210 20% 98%;
+
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 20% 98%;
+
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 20% 98%;
+
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 20% 98%;
+
+  --ring: 263.4 70% 50.4%;
+}
+
+* {
+  @apply border-border;
 }
 
 body {
-  @apply bg-neutral-50 text-neutral-900 transition-colors duration-300 ease-out dark:bg-[#0b1220] dark:text-neutral-100;
+  @apply min-h-screen bg-background text-foreground antialiased;
 }
 
-html[data-theme="dark"] body {
-  @apply bg-[#0b1220] text-neutral-100;
+a {
+  @apply text-primary underline-offset-4 transition hover:underline;
 }
 
-html[data-theme="light"] body {
-  @apply bg-neutral-50 text-neutral-900;
-}
-
-.theme-container input[type="date"]::-webkit-calendar-picker-indicator {
-  cursor: pointer;
-}
-
-html[data-theme="dark"] .theme-container input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(1);
+[data-sonner-toaster] {
+  @apply z-[100];
 }
