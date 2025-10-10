@@ -2,5 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: light dark; }
-body { @apply bg-neutral-50 text-neutral-900 dark:bg-[#0b1220] dark:text-neutral-100; }
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  @apply bg-neutral-50 text-neutral-900 transition-colors duration-300 ease-out dark:bg-[#0b1220] dark:text-neutral-100;
+}
+
+html[data-theme="dark"] body {
+  @apply bg-[#0b1220] text-neutral-100;
+}
+
+html[data-theme="light"] body {
+  @apply bg-neutral-50 text-neutral-900;
+}
+
+.theme-container input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+}
+
+html[data-theme="dark"] .theme-container input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
