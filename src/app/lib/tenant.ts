@@ -1,5 +1,12 @@
 import "server-only";
 import { prisma } from "@/app/lib/prisma";
+import {
+  DEFAULT_HOURS,
+  DEFAULT_WORK_DAYS,
+  safeParseJson,
+  normalizeHours,
+  normalizeWorkDays,
+} from "@/app/lib/settings";
 
 export function getTenantFromRequest(req: Request): string | null {
   try {
@@ -23,16 +30,28 @@ export async function resolveBusiness(tenant?: string | null) {
 
 export function getTenantSlug(searchParams?: { t?: string | string[] }) {
   const tParam = Array.isArray(searchParams?.t) ? searchParams?.t[0] : searchParams?.t;
-  const slug = (tParam ?? process.env.DEFAULT_TENANT ?? "").trim();
-  if (!slug) throw new Error("Kein Tenant-Slug gefunden. Setze DEFAULT_TENANT oder übergebe ?t=slug.");
-  return slug;
+  const querySlug = (tParam ?? "").trim();
+  if (querySlug) return querySlug.toLowerCase();
+
+  const envSlug = (process.env.DEFAULT_TENANT ?? "").trim();
+  if (envSlug) return envSlug.toLowerCase();
+
+  return "default";
 }
 
 export async function ensureBusinessWithSettings(slug: string) {
-  let business = await prisma.business.findUnique({ where: { slug } });
+  const normalizedSlug = slug.trim().toLowerCase() || "default";
+
+  let business = await prisma.business.findUnique({ where: { slug: normalizedSlug } });
   if (!business) {
     business = await prisma.business.create({
-      data: { slug, name: slug.replace(/-/g, " ") },
+      data: {
+        slug: normalizedSlug,
+        name: normalizedSlug.replace(/-/g, " "),
+        email: null,
+        logoDataUrl: null,
+        timezone: "Europe/Zurich",
+      },
     });
   }
 
@@ -43,10 +62,24 @@ export async function ensureBusinessWithSettings(slug: string) {
         businessId: business.id,
         slotMinutes: 30,
         bufferMinutes: 0,
-        hoursJson: "{}",
+        hoursJson: JSON.stringify(DEFAULT_HOURS),
+        workDaysJson: JSON.stringify(DEFAULT_WORK_DAYS),
+        vacationDaysJson: JSON.stringify([]),
+        bookingNotes: null,
       },
     });
   }
 
-  return { business, settings };
+  // Ensure settings JSON blobs are normalized so the entrepreneur UI always receives valid data
+  const workDays = normalizeWorkDays(safeParseJson(settings.workDaysJson, DEFAULT_WORK_DAYS));
+  const hours = normalizeHours(safeParseJson(settings.hoursJson, DEFAULT_HOURS));
+  const normalizedSettings = await prisma.settings.update({
+    where: { id: settings.id },
+    data: {
+      workDaysJson: JSON.stringify(workDays.length ? workDays : DEFAULT_WORK_DAYS),
+      hoursJson: JSON.stringify(Object.keys(hours).length ? hours : DEFAULT_HOURS),
+    },
+  });
+
+  return { business, settings: normalizedSettings };
 }
