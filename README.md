@@ -42,6 +42,13 @@ DATABASE_URL="postgresql://user:password@localhost:5432/velore"
 NEXT_PUBLIC_SITE_URL="http://localhost:3000"
 ```
 
+Optional Supabase credentials if you prefer Supabase over a direct Postgres URL:
+
+```
+SUPABASE_URL=""
+SUPABASE_ANON_KEY=""
+```
+
 ### Installation
 
 ```bash

@@ -1,8 +1,12 @@
 import { addMinutes, eachDayOfInterval, format, isEqual, isWithinInterval, parse, set } from "date-fns";
 import { de } from "date-fns/locale";
 
+export const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+export type Weekday = (typeof WEEKDAYS)[number];
+
 export type BusinessHour = {
-  day: string;
+  day: Weekday;
   enabled: boolean;
   open: string;
   close: string;
@@ -11,21 +15,23 @@ export type BusinessHour = {
 
 export type Holiday = string;
 
-const dayIndex: Record<string, number> = {
-  Sun: 0,
+const dayIndex: Record<Weekday, number> = {
   Mon: 1,
   Tue: 2,
   Wed: 3,
   Thu: 4,
   Fri: 5,
   Sat: 6,
+  Sun: 0,
 };
 
-export function getWeekdayLabel(day: string) {
-  const base = new Date();
-  const diff = dayIndex[day] - base.getDay();
-  const adjusted = new Date(base.getFullYear(), base.getMonth(), base.getDate() + diff);
-  return format(adjusted, "EEE", { locale: de });
+export function getWeekdayLabel(day: Weekday) {
+  const today = new Date();
+  const todayIndex = today.getDay();
+  const targetIndex = dayIndex[day];
+  const diff = (targetIndex - todayIndex + 7) % 7;
+  const adjusted = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diff);
+  return format(adjusted, "EEEE", { locale: de });
 }
 
 export function buildTimeSlots(
@@ -40,7 +46,7 @@ export function buildTimeSlots(
   }
 
   const weekday = date.getDay();
-  const dayConfig = hours.find((day) => dayIndex[day.day] === weekday);
+  const dayConfig = hours.find((item) => dayIndex[item.day] === weekday);
 
   if (!dayConfig || !dayConfig.enabled) {
     return [];

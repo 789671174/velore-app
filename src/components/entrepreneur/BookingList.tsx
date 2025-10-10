@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { bookingStatusTheme } from "@/lib/status";
+import { cn } from "@/lib/utils";
 
 export interface DashboardBooking {
   id: string;
@@ -70,7 +72,10 @@ export function BookingList({ tenant, bookings }: BookingListProps) {
         {bookings.map((booking) => (
           <div
             key={booking.id}
-            className="flex flex-col gap-3 rounded-lg border p-4 md:flex-row md:items-center md:justify-between"
+            className={cn(
+              "flex flex-col gap-3 rounded-lg border p-4 md:flex-row md:items-center md:justify-between",
+              bookingStatusTheme[booking.status].borderClass,
+            )}
           >
             <div>
               <p className="font-medium">
@@ -83,25 +88,14 @@ export function BookingList({ tenant, bookings }: BookingListProps) {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge
-                variant={
-                  booking.status === "pending"
-                    ? "secondary"
-                    : booking.status === "confirmed"
-                    ? "default"
-                    : "destructive"
-                }
-              >
-                {booking.status === "pending"
-                  ? "Offen"
-                  : booking.status === "confirmed"
-                  ? "Bestätigt"
-                  : "Storniert"}
+              <Badge className={bookingStatusTheme[booking.status].badgeClass}>
+                {bookingStatusTheme[booking.status].label}
               </Badge>
               {booking.status !== "confirmed" && (
                 <Button
                   size="sm"
                   variant="outline"
+                  className="border-emerald-500/60 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"
                   disabled={isPending(booking.id, "confirmed")}
                   onClick={() => updateBooking(booking.id, "confirmed")}
                 >
@@ -112,7 +106,7 @@ export function BookingList({ tenant, bookings }: BookingListProps) {
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-destructive hover:text-destructive"
+                  className="text-destructive hover:bg-destructive/10"
                   disabled={isPending(booking.id, "cancelled")}
                   onClick={() => updateBooking(booking.id, "cancelled")}
                 >

@@ -3,15 +3,9 @@ import { notFound } from "next/navigation";
 import { BookingForm } from "@/components/booking/BookingForm";
 import { ensureTenantWithSettings } from "@/lib/tenant";
 import { type BusinessHour } from "@/lib/time";
-import { settingsSchema } from "@/lib/validators/settings";
+import { bookingSettingsSchema } from "@/lib/validators/settings";
 
 const DEFAULT_TENANT = "velora-hairstyles";
-
-const bookingSettingsSchema = settingsSchema.pick({
-  businessName: true,
-  businessHours: true,
-  holidays: true,
-});
 
 export default async function BookingPage({ searchParams }: { searchParams: { tenant?: string } }) {
   const tenantSlug = searchParams?.tenant ?? DEFAULT_TENANT;
@@ -24,7 +18,7 @@ export default async function BookingPage({ searchParams }: { searchParams: { te
   const { businessName, businessHours, holidays } = bookingSettingsSchema.parse({
     businessName: tenant.settings.businessName,
     businessHours: tenant.settings.businessHours,
-    holidays: (tenant.settings.holidays as string[]) ?? [],
+    holidays: tenant.settings.holidays,
   });
 
   return (

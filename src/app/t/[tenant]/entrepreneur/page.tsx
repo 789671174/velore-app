@@ -18,7 +18,10 @@ export default async function EntrepreneurPage({ params }: EntrepreneurPageProps
 
   const bookings = await prisma.booking.findMany({
     where: { tenantId: tenant.id },
-    orderBy: { date: "asc" },
+    orderBy: [
+      { date: "asc" },
+      { startTime: "asc" },
+    ],
     include: {
       customer: true,
     },

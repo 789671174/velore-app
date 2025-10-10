@@ -1,9 +1,11 @@
+import { parseISO } from "date-fns";
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { ensureTenantWithSettings } from "@/lib/tenant";
 import { buildTimeSlots } from "@/lib/time";
 import { bookingSchema } from "@/lib/validators/booking";
+import { availabilitySchema } from "@/lib/validators/settings";
 import { ZodError } from "zod";
 
 interface RouteContext {
@@ -21,12 +23,18 @@ export async function POST(request: Request, { params }: RouteContext) {
       return NextResponse.json({ message: "Tenant not found" }, { status: 404 });
     }
 
-    const bookingDate = new Date(payload.date);
-    const slots = buildTimeSlots(
-      bookingDate,
-      tenant.settings.businessHours as any,
-      (tenant.settings.holidays as string[]) ?? [],
-    );
+    const availability = availabilitySchema.parse({
+      businessHours: tenant.settings.businessHours,
+      holidays: tenant.settings.holidays,
+    });
+
+    const bookingDate = parseISO(payload.date);
+
+    if (Number.isNaN(bookingDate.getTime())) {
+      return NextResponse.json({ message: "Ungültiges Datum" }, { status: 400 });
+    }
+
+    const slots = buildTimeSlots(bookingDate, availability.businessHours, availability.holidays);
 
     const slotExists = slots.some((slot) => {
       const start = `${slot.start.getHours().toString().padStart(2, "0")}:${slot.start
@@ -43,6 +51,12 @@ export async function POST(request: Request, { params }: RouteContext) {
     if (!slotExists) {
       return NextResponse.json({ message: "Zeitslot ist nicht verfügbar" }, { status: 400 });
     }
+
+    const firstName = payload.firstName.trim();
+    const lastName = payload.lastName.trim();
+    const email = payload.email.trim().toLowerCase();
+    const phone = payload.phone?.trim() ? payload.phone.trim() : null;
+    const notes = payload.notes?.trim() ? payload.notes.trim() : null;
 
     const overlap = await prisma.booking.findFirst({
       where: {
@@ -75,21 +89,21 @@ export async function POST(request: Request, { params }: RouteContext) {
     const customer = await prisma.customer.upsert({
       where: {
         email_tenantId: {
-          email: payload.email,
+          email,
           tenantId: tenant.id,
         },
       },
       update: {
-        firstName: payload.firstName,
-        lastName: payload.lastName,
-        phone: payload.phone,
+        firstName,
+        lastName,
+        phone,
       },
       create: {
         tenantId: tenant.id,
-        firstName: payload.firstName,
-        lastName: payload.lastName,
-        email: payload.email,
-        phone: payload.phone,
+        firstName,
+        lastName,
+        email,
+        phone,
       },
     });
 
@@ -100,7 +114,7 @@ export async function POST(request: Request, { params }: RouteContext) {
         date: payload.date,
         startTime: payload.startTime,
         endTime: payload.endTime,
-        notes: payload.notes,
+        notes,
         status: "pending",
       },
     });

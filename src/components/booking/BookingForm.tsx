@@ -198,11 +198,12 @@ export function BookingForm({ tenant, businessName, businessHours, holidays }: B
                       shouldDirty: true,
                     });
                   }}
+                  aria-pressed={selectedStartTime === format(slot.start, "HH:mm")}
+                  aria-label={`Zeitslot ${slot.label}`}
                   className={cn(
-                    "rounded-md border px-3 py-2 text-left text-sm transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    selectedStartTime === format(slot.start, "HH:mm")
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-input",
+                    "rounded-md border border-border bg-background px-3 py-2 text-left text-sm transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    selectedStartTime === format(slot.start, "HH:mm") &&
+                      "border-primary bg-primary/10 text-primary shadow-sm",
                   )}
                 >
                   {slot.label}

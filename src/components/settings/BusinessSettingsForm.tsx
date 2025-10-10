@@ -2,6 +2,7 @@
 
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { useRouter } from "next/navigation";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -12,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
-import { getWeekdayLabel } from "@/lib/time";
+import { getWeekdayLabel, WEEKDAYS } from "@/lib/time";
 import { zodResolver } from "@/lib/resolvers/zod";
 import { settingsSchema, type SettingsInput } from "@/lib/validators/settings";
 
@@ -21,12 +22,16 @@ interface BusinessSettingsFormProps {
   initialData: SettingsInput;
 }
 
-const DAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
-
 export function BusinessSettingsForm({ tenant, initialData }: BusinessSettingsFormProps) {
+  const router = useRouter();
   const form = useForm<SettingsInput>({
     resolver: zodResolver(settingsSchema),
-    defaultValues: initialData,
+    defaultValues: {
+      ...initialData,
+      phone: initialData.phone ?? "",
+      address: initialData.address ?? "",
+      notes: initialData.notes ?? "",
+    },
   });
 
   const { fields, update } = useFieldArray({
@@ -35,6 +40,7 @@ export function BusinessSettingsForm({ tenant, initialData }: BusinessSettingsFo
   });
 
   const holidays = form.watch("holidays");
+  const { isSubmitting } = form.formState;
 
   const handleHolidaysChange = (days: Date[] | undefined) => {
     const values = Array.from(
@@ -53,10 +59,25 @@ export function BusinessSettingsForm({ tenant, initialData }: BusinessSettingsFo
   };
 
   const onSubmit = async (values: SettingsInput) => {
+    const payload: SettingsInput = {
+      ...values,
+      phone: values.phone?.trim() ? values.phone.trim() : null,
+      address: values.address?.trim() ? values.address.trim() : null,
+      notes: values.notes?.trim() ? values.notes.trim() : null,
+      businessHours: values.businessHours.map((day) => ({
+        ...day,
+        breaks: (day.breaks ?? []).map((pause) => ({
+          start: pause.start,
+          end: pause.end,
+        })),
+      })),
+      holidays: [...(values.holidays ?? [])].sort(),
+    };
+
     const res = await fetch(`/api/tenant/${tenant}/settings`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(values),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
@@ -65,6 +86,16 @@ export function BusinessSettingsForm({ tenant, initialData }: BusinessSettingsFo
       return;
     }
 
+    const response = await res.json();
+    const parsed = settingsSchema.parse(response);
+
+    form.reset({
+      ...parsed,
+      phone: parsed.phone ?? "",
+      address: parsed.address ?? "",
+      notes: parsed.notes ?? "",
+    });
+    router.refresh();
     toast.success("Einstellungen gespeichert");
   };
 
@@ -111,7 +142,7 @@ export function BusinessSettingsForm({ tenant, initialData }: BusinessSettingsFo
           <CardDescription>Definiere Öffnungszeiten und Pausen pro Tag.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {DAY_ORDER.map((day) => {
+          {WEEKDAYS.map((day) => {
             const fieldIndex = fields.findIndex((field) => field.day === day);
             if (fieldIndex === -1) {
               return null;
@@ -123,7 +154,9 @@ export function BusinessSettingsForm({ tenant, initialData }: BusinessSettingsFo
               <div key={day} className="grid gap-4 rounded-lg border p-4">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
-                    <p className="font-medium">{getWeekdayLabel(day)} ({day})</p>
+                    <p className="font-medium">
+                      {getWeekdayLabel(day)} <span className="text-xs text-muted-foreground">({day})</span>
+                    </p>
                     <p className="text-sm text-muted-foreground">
                       {form.watch(`businessHours.${fieldIndex}.open`)} –
                       {" "}
@@ -259,6 +292,9 @@ export function BusinessSettingsForm({ tenant, initialData }: BusinessSettingsFo
                 selected={(holidays ?? []).map((day) => new Date(day))}
                 onSelect={handleHolidaysChange}
                 locale={de}
+                modifiersClassNames={{
+                  selected: "border border-destructive/50 bg-destructive/15 text-destructive",
+                }}
               />
               <p className="text-sm text-muted-foreground">
                 {(holidays ?? []).length} Tage ausgewählt
@@ -292,8 +328,8 @@ export function BusinessSettingsForm({ tenant, initialData }: BusinessSettingsFo
       </Card>
 
       <div className="flex justify-end">
-        <Button type="submit" size="lg">
-          Speichern
+        <Button type="submit" size="lg" disabled={isSubmitting}>
+          {isSubmitting ? "Speichert…" : "Speichern"}
         </Button>
       </div>
     </form>

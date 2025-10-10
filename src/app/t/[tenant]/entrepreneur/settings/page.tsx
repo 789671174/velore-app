@@ -18,22 +18,12 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
   const parsed = settingsSchema.parse({
     businessName: tenant.settings.businessName,
     email: tenant.settings.email,
-    phone: tenant.settings.phone ?? "",
-    address: tenant.settings.address ?? "",
-    notes: tenant.settings.notes ?? "",
-    businessHours: tenant.settings.businessHours as any,
-    holidays: (tenant.settings.holidays as string[]) ?? [],
+    phone: tenant.settings.phone,
+    address: tenant.settings.address,
+    notes: tenant.settings.notes,
+    businessHours: tenant.settings.businessHours,
+    holidays: tenant.settings.holidays,
   });
-
-  const orderedHours = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) =>
-    parsed.businessHours.find((item) => item.day === day) ?? {
-      day: day as (typeof parsed.businessHours)[number]["day"],
-      enabled: false,
-      open: "09:00",
-      close: "17:00",
-      breaks: [],
-    },
-  );
 
   return (
     <div className="space-y-6">
@@ -43,7 +33,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           Passe Öffnungszeiten, Sondertage und Unternehmensdaten für {tenant.name} an.
         </p>
       </div>
-      <BusinessSettingsForm tenant={tenant.slug} initialData={{ ...parsed, businessHours: orderedHours }} />
+      <BusinessSettingsForm tenant={tenant.slug} initialData={parsed} />
     </div>
   );
 }

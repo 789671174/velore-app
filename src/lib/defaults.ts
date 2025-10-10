@@ -10,7 +10,7 @@ export const DEFAULT_BUSINESS_HOURS: BusinessHour[] = [
   { day: "Fri", enabled: true, open: "09:00", close: "18:00", breaks: [] },
   { day: "Sat", enabled: false, open: "09:00", close: "14:00", breaks: [] },
   { day: "Sun", enabled: false, open: "09:00", close: "14:00", breaks: [] },
-];
+] satisfies BusinessHour[];
 
 export function buildDefaultSettingsPayload(
   tenant: { id: string; name: string; slug: string },
