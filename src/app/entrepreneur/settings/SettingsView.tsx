@@ -2,8 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import type { Business, Settings } from "@prisma/client";
-
 import type { Holiday } from "@/app/types";
 import type { TimeRange, VacationRange } from "@/app/lib/settings";
 import {
@@ -49,10 +47,28 @@ function StepHeading({
   );
 }
 
+type BusinessPayload = {
+  id: string;
+  slug: string;
+  name: string;
+  email: string | null;
+  logoDataUrl: string | null;
+};
+
+type SettingsPayload = {
+  id: string;
+  slotMinutes: number;
+  bufferMinutes: number;
+  hoursJson: string;
+  workDaysJson: string;
+  vacationDaysJson: string;
+  bookingNotes: string | null;
+};
+
 type Props = {
   tenant: string;
-  business: Business;
-  initialSettings: Settings;
+  business: BusinessPayload;
+  initialSettings: SettingsPayload;
 };
 
 type HolidayDraft = {
@@ -66,17 +82,17 @@ type HoursState = Record<number, TimeRange[]>;
 
 type ApiResult<T> = { ok: true; data: T } | { ok: false; message: string };
 
-function toHoursState(settings: Settings): HoursState {
+function toHoursState(settings: SettingsPayload): HoursState {
   const parsed = normalizeHours(safeParseJson(settings.hoursJson, DEFAULT_HOURS));
   return Object.keys(parsed).length ? parsed : DEFAULT_HOURS;
 }
 
-function toWorkDays(settings: Settings): number[] {
+function toWorkDays(settings: SettingsPayload): number[] {
   const parsed = normalizeWorkDays(safeParseJson(settings.workDaysJson, DEFAULT_WORK_DAYS));
   return parsed.length ? parsed : DEFAULT_WORK_DAYS;
 }
 
-function toVacationDays(settings: Settings): VacationRange[] {
+function toVacationDays(settings: SettingsPayload): VacationRange[] {
   return sanitizeVacationRanges(safeParseJson(settings.vacationDaysJson, [] as VacationRange[]));
 }
 
