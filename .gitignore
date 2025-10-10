@@ -4,3 +4,4 @@ node_modules/
 prisma/dev.db
 *.log
 .DS_Store
+tsconfig.tsbuildinfo

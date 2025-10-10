@@ -1,26 +1,22 @@
 import { parseISO } from "date-fns";
 import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 
 import { prisma } from "@/lib/prisma";
 import { ensureTenantWithSettings } from "@/lib/tenant";
 import { buildTimeSlots } from "@/lib/time";
 import { bookingSchema } from "@/lib/validators/booking";
 import { availabilitySchema } from "@/lib/validators/settings";
-import { ZodError } from "zod";
 
-interface RouteContext {
-  params: { tenant: string };
-}
-
-export async function POST(request: Request, { params }: RouteContext) {
+export async function POST(request: Request) {
   try {
     const data = await request.json();
-    const payload = bookingSchema.parse({ ...data, tenant: params.tenant });
+    const payload = bookingSchema.parse(data);
 
-    const tenant = await ensureTenantWithSettings(params.tenant);
+    const tenant = await ensureTenantWithSettings(payload.tenant);
 
     if (!tenant || !tenant.settings) {
-      return NextResponse.json({ message: "Tenant not found" }, { status: 404 });
+      return NextResponse.json({ message: "Tenant nicht gefunden" }, { status: 404 });
     }
 
     const availability = availabilitySchema.parse({

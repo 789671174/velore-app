@@ -74,7 +74,7 @@ export function BusinessSettingsForm({ tenant, initialData }: BusinessSettingsFo
       holidays: [...(values.holidays ?? [])].sort(),
     };
 
-    const res = await fetch(`/api/tenant/${tenant}/settings`, {
+    const res = await fetch(`/api/settings?tenant=${encodeURIComponent(tenant)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

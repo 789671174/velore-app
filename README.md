@@ -15,7 +15,7 @@ Next.js 14 App Router project for multi-tenant salon scheduling with Prisma + Po
   - Manage company profile, work days/hours, breaks, holidays
   - Inline validation, dark/light mode ready
 - **Multi-Tenant Support** via `/t/[tenant]` prefix and seeded `velora-hairstyles` tenant
-- **API** endpoints for settings and bookings under `/api/tenant/[tenant]/...`
+- **API** endpoints for settings, holidays, slots, and bookings under `/api/(settings|holidays|slots|booking)` with `tenant` query param
 - **Theming** using `next-themes` + shadcn/ui design tokens
 
 ## Tech Stack

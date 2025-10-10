@@ -79,7 +79,7 @@ export function BookingForm({ tenant, businessName, businessHours, holidays }: B
   const onSubmit = async (data: BookingInput) => {
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/tenant/${tenant}/booking`, {
+      const res = await fetch(`/api/booking`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

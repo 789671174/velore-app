@@ -1,19 +1,26 @@
 import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 
 import { prisma } from "@/lib/prisma";
 import { ensureTenantWithSettings } from "@/lib/tenant";
 import { settingsSchema } from "@/lib/validators/settings";
-import { ZodError } from "zod";
 
-interface RouteContext {
-  params: { tenant: string };
+function getTenantSlug(request: Request) {
+  const { searchParams } = new URL(request.url);
+  return searchParams.get("tenant");
 }
 
-export async function GET(_request: Request, { params }: RouteContext) {
-  const tenant = await ensureTenantWithSettings(params.tenant);
+export async function GET(request: Request) {
+  const tenantSlug = getTenantSlug(request);
+
+  if (!tenantSlug) {
+    return NextResponse.json({ message: "Tenant erforderlich" }, { status: 400 });
+  }
+
+  const tenant = await ensureTenantWithSettings(tenantSlug);
 
   if (!tenant || !tenant.settings) {
-    return NextResponse.json({ message: "Settings not found" }, { status: 404 });
+    return NextResponse.json({ message: "Tenant nicht gefunden" }, { status: 404 });
   }
 
   const parsed = settingsSchema.parse({
@@ -26,24 +33,25 @@ export async function GET(_request: Request, { params }: RouteContext) {
     holidays: tenant.settings.holidays,
   });
 
-  return NextResponse.json({
-    ...parsed,
-    id: tenant.settings.id,
-    tenantId: tenant.settings.tenantId,
-    updatedAt: tenant.settings.updatedAt.toISOString(),
-  });
+  return NextResponse.json(parsed);
 }
 
-export async function PATCH(request: Request, { params }: RouteContext) {
+export async function PATCH(request: Request) {
   try {
+    const tenantSlug = getTenantSlug(request);
+
+    if (!tenantSlug) {
+      return NextResponse.json({ message: "Tenant erforderlich" }, { status: 400 });
+    }
+
+    const tenant = await ensureTenantWithSettings(tenantSlug);
+
+    if (!tenant || !tenant.settings) {
+      return NextResponse.json({ message: "Tenant nicht gefunden" }, { status: 404 });
+    }
+
     const data = await request.json();
     const payload = settingsSchema.parse(data);
-
-    const tenant = await ensureTenantWithSettings(params.tenant);
-
-    if (!tenant) {
-      return NextResponse.json({ message: "Tenant not found" }, { status: 404 });
-    }
 
     const sanitized = {
       businessName: payload.businessName.trim(),
@@ -53,15 +61,11 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       notes: payload.notes?.trim() ? payload.notes.trim() : null,
       businessHours: payload.businessHours,
       holidays: payload.holidays,
-    };
+    } as const;
 
-    const updated = await prisma.settings.upsert({
+    const updated = await prisma.settings.update({
       where: { tenantId: tenant.id },
-      update: {
-        ...sanitized,
-      },
-      create: {
-        tenantId: tenant.id,
+      data: {
         ...sanitized,
       },
     });
@@ -76,16 +80,12 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       holidays: updated.holidays,
     });
 
-    return NextResponse.json({
-      ...parsed,
-      id: updated.id,
-      tenantId: updated.tenantId,
-      updatedAt: updated.updatedAt.toISOString(),
-    });
+    return NextResponse.json(parsed);
   } catch (error) {
     if (error instanceof ZodError) {
-      return NextResponse.json({ message: error.issues[0]?.message ?? "Ungültige Daten" }, { status: 400 });
+      return NextResponse.json({ message: error.issues[0]?.message ?? "Ungültige Eingabe" }, { status: 400 });
     }
+
     console.error(error);
     return NextResponse.json({ message: "Speichern fehlgeschlagen" }, { status: 500 });
   }

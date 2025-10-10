@@ -39,7 +39,7 @@ export function BookingList({ tenant, bookings }: BookingListProps) {
     setPendingId(`${id}-${status}`);
 
     try {
-      const res = await fetch(`/api/tenant/${tenant}/booking/${id}`, {
+      const res = await fetch(`/api/booking/${id}?tenant=${encodeURIComponent(tenant)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
