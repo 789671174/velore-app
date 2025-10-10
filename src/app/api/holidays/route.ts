@@ -1,14 +1,11 @@
 ﻿import { NextResponse } from "next/server";
 
 import { prisma } from "@/app/lib/prisma";
-import { getTenantFromRequest, resolveBusiness } from "@/app/lib/tenant";
+import { ensureBusiness, getTenantFromRequest } from "@/app/lib/tenant";
 
 export async function GET(req: Request) {
   const tenant = getTenantFromRequest(req);
-  const business = await resolveBusiness(tenant);
-  if (!business) {
-    return NextResponse.json({ error: "tenant not found" }, { status: 404 });
-  }
+  const business = await ensureBusiness(tenant);
 
   const holidays = await prisma.holiday.findMany({
     where: { businessId: business.id },
@@ -20,10 +17,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const tenant = getTenantFromRequest(req);
-  const business = await resolveBusiness(tenant);
-  if (!business) {
-    return NextResponse.json({ error: "tenant not found" }, { status: 404 });
-  }
+  const business = await ensureBusiness(tenant);
 
   const body = (await req.json()) as { date?: string; reason?: string };
   if (!body.date) {
@@ -43,10 +37,7 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   const tenant = getTenantFromRequest(req);
-  const business = await resolveBusiness(tenant);
-  if (!business) {
-    return NextResponse.json({ error: "tenant not found" }, { status: 404 });
-  }
+  const business = await ensureBusiness(tenant);
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");

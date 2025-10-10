@@ -10,7 +10,12 @@ import {
   safeParseJson,
   sanitizeVacationRanges,
 } from "@/app/lib/settings";
-import { getTenantFromRequest, resolveBusiness } from "@/app/lib/tenant";
+import {
+  ensureBusiness,
+  ensureBusinessWithSettings,
+  getTenantFromRequest,
+  normalizeTenantSlug,
+} from "@/app/lib/tenant";
 
 type SettingsPayload = {
   tenant?: string;
@@ -40,33 +45,12 @@ function prepareWorkDays(value: SettingsPayload["workDays"]) {
 }
 
 async function getTenantContext(req: Request) {
-  const tenant = getTenantFromRequest(req);
-  const business = await resolveBusiness(tenant);
-  if (!business) {
-    return NextResponse.json({ error: "tenant not found" }, { status: 404 });
-  }
-
-  let settings = await prisma.settings.findUnique({ where: { businessId: business.id } });
-  if (!settings) {
-    settings = await prisma.settings.create({
-      data: {
-        businessId: business.id,
-        slotMinutes: 30,
-        bufferMinutes: 0,
-        hoursJson: JSON.stringify(DEFAULT_HOURS),
-        workDaysJson: JSON.stringify(DEFAULT_WORK_DAYS),
-        vacationDaysJson: JSON.stringify([]),
-      },
-    });
-  }
-
-  return { business, settings };
+  const slug = getTenantFromRequest(req);
+  return ensureBusinessWithSettings(slug);
 }
 
 export async function GET(req: Request) {
   const context = await getTenantContext(req);
-  if (context instanceof NextResponse) return context;
-
   const { business, settings } = context;
 
   const workDays = safeParseJson(settings.workDaysJson, DEFAULT_WORK_DAYS);
@@ -90,12 +74,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const body = (await req.json()) as SettingsPayload;
-  const tenant = body.tenant || getTenantFromRequest(req);
-  const business = await resolveBusiness(tenant);
-
-  if (!business) {
-    return NextResponse.json({ error: "tenant not found" }, { status: 404 });
-  }
+  const tenant = normalizeTenantSlug(body.tenant || getTenantFromRequest(req));
+  const business = await ensureBusiness(tenant);
 
   const workDays = prepareWorkDays(body.workDays);
   const hours = prepareHours(body.hours);

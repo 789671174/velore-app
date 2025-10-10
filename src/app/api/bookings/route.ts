@@ -1,11 +1,10 @@
 ﻿import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
-import { getTenantFromRequest, resolveBusiness } from "@/app/lib/tenant";
+import { ensureBusiness, getTenantFromRequest } from "@/app/lib/tenant";
 
 export async function GET(req: Request) {
   const tenant = getTenantFromRequest(req);
-  const biz = await resolveBusiness(tenant);
-  if (!biz) return NextResponse.json({ error: "tenant not found" }, { status: 404 });
+  const biz = await ensureBusiness(tenant);
 
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date"); // optionaler Filter
@@ -21,8 +20,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const tenant = getTenantFromRequest(req);
-  const biz = await resolveBusiness(tenant);
-  if (!biz) return NextResponse.json({ error: "tenant not found" }, { status: 404 });
+  const biz = await ensureBusiness(tenant);
 
   const body = await req.json();
   const required = ["firstName", "lastName", "email", "date", "time"];
@@ -47,8 +45,7 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   const tenant = getTenantFromRequest(req);
-  const biz = await resolveBusiness(tenant);
-  if (!biz) return NextResponse.json({ error: "tenant not found" }, { status: 404 });
+  const biz = await ensureBusiness(tenant);
 
   const body = await req.json();
   if (!body?.id) return NextResponse.json({ error: "id required" }, { status: 400 });

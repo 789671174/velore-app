@@ -11,7 +11,7 @@ import {
   safeParseJson,
   sanitizeVacationRanges,
 } from "@/app/lib/settings";
-import { getTenantFromRequest, resolveBusiness } from "@/app/lib/tenant";
+import { ensureBusinessWithSettings, getTenantFromRequest } from "@/app/lib/tenant";
 
 function buildSlots(
   dateStr: string,
@@ -41,20 +41,12 @@ function isVacationDay(vacations: VacationRange[], date: string) {
 
 export async function GET(req: Request) {
   const tenant = getTenantFromRequest(req);
-  const business = await resolveBusiness(tenant);
-  if (!business) {
-    return NextResponse.json({ error: "tenant not found" }, { status: 404 });
-  }
+  const { business, settings } = await ensureBusinessWithSettings(tenant);
 
   const { searchParams } = new URL(req.url);
   const dateStr = searchParams.get("date");
   if (!dateStr) {
     return NextResponse.json({ error: "date required" }, { status: 400 });
-  }
-
-  const settings = await prisma.settings.findUnique({ where: { businessId: business.id } });
-  if (!settings) {
-    return NextResponse.json({ slots: [] });
   }
 
   const workDays = normalizeWorkDays(safeParseJson(settings.workDaysJson, DEFAULT_WORK_DAYS));

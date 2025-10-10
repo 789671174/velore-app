@@ -9,13 +9,23 @@ import {
   safeParseJson,
 } from "@/app/lib/settings";
 
-const FALLBACK_TENANT = "default";
+export const FALLBACK_TENANT = "default";
 
 function normalizeSlug(raw: string | null | undefined) {
   return (raw ?? "").trim().toLowerCase();
 }
 
-export function getTenantFromRequest(req: Request): string | null {
+export function normalizeTenantSlug(raw?: string | null) {
+  const normalized = normalizeSlug(raw);
+  if (normalized) return normalized;
+
+  const envSlug = normalizeSlug(process.env.DEFAULT_TENANT);
+  if (envSlug) return envSlug;
+
+  return FALLBACK_TENANT;
+}
+
+export function getTenantFromRequest(req: Request): string {
   try {
     const url = new URL(req.url);
     const querySlug = normalizeSlug(url.searchParams.get("t"));
@@ -27,44 +37,35 @@ export function getTenantFromRequest(req: Request): string | null {
   const headerSlug = normalizeSlug(req.headers.get("x-tenant"));
   if (headerSlug) return headerSlug;
 
-  const envSlug = normalizeSlug(process.env.DEFAULT_TENANT);
-  if (envSlug) return envSlug;
-
-  return null;
-}
-
-export async function resolveBusiness(tenant?: string | null) {
-  const slug = normalizeSlug(tenant ?? process.env.DEFAULT_TENANT ?? FALLBACK_TENANT);
-  if (!slug) return null;
-  return prisma.business.findUnique({ where: { slug } });
+  return normalizeTenantSlug();
 }
 
 export function getTenantSlug(searchParams?: { t?: string | string[] }) {
   const tParam = Array.isArray(searchParams?.t) ? searchParams?.t[0] : searchParams?.t;
-  const querySlug = normalizeSlug(tParam);
-  if (querySlug) return querySlug;
-
-  const envSlug = normalizeSlug(process.env.DEFAULT_TENANT);
-  if (envSlug) return envSlug;
-
-  return FALLBACK_TENANT;
+  return normalizeTenantSlug(tParam);
 }
 
-export async function ensureBusinessWithSettings(slug: string) {
-  const normalizedSlug = normalizeSlug(slug) || FALLBACK_TENANT;
+export async function ensureBusiness(slug?: string | null) {
+  const normalizedSlug = normalizeTenantSlug(slug);
 
   let business = await prisma.business.findUnique({ where: { slug: normalizedSlug } });
   if (!business) {
     business = await prisma.business.create({
       data: {
         slug: normalizedSlug,
-        name: normalizedSlug.replace(/-/g, " "),
+        name: normalizedSlug.replace(/-/g, " ") || "Velore",
         email: null,
         logoDataUrl: null,
         timezone: "Europe/Zurich",
       },
     });
   }
+
+  return business;
+}
+
+export async function ensureBusinessWithSettings(slug: string | null | undefined) {
+  const business = await ensureBusiness(slug);
 
   let settings = await prisma.settings.findUnique({ where: { businessId: business.id } });
   if (!settings) {
