@@ -1,5 +1,5 @@
 ﻿/* eslint-disable */
-import { prisma } from "@/app/lib/prisma";
+import { prisma } from "@/lib/db";
 
 const DEFAULT_HOURS: Record<number, { from: string; to: string }[]> = {
   1: [{ from: "09:00", to: "17:00" }],

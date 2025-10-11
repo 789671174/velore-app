@@ -2,7 +2,7 @@ import "server-only";
 
 import type { Business, Settings } from "@prisma/client";
 
-import { prisma } from "@/app/lib/prisma";
+import { prisma } from "@/lib/db";
 import {
   DEFAULT_HOURS,
   DEFAULT_WORK_DAYS,
