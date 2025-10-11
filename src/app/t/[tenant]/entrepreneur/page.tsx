@@ -2,24 +2,20 @@
 // No client hooks here.
 
 import { redirect, notFound } from "next/navigation";
-
 import { prisma } from "@/lib/db";
-import { normalizeTenantSlug } from "@/app/lib/tenant";
 
-type Params = { params: { tenant?: string } };
+type Params = { params: { tenant: string } };
 
 export default async function EntrepreneurEntry({ params }: Params) {
-  const slug = normalizeTenantSlug(params.tenant);
-  if (!slug) {
-    notFound();
-  }
+  const slug = params.tenant;
 
-  const tenant = await prisma.business.findUnique({
+  const tenant = await prisma.tenant.findUnique({
     where: { slug },
     select: { id: true, slug: true },
   });
 
   if (!tenant) {
+    // Graceful 404 instead of crashing the server
     notFound();
   }
 
