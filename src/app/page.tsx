@@ -1,1 +1,13 @@
-import Link from "next/link"; export default function Home(){return(<main className="min-h-screen flex items-center justify-center p-8"><div className="max-w-xl w-full space-y-4 text-center"><h1 className="text-2xl font-bold">Velora – Starter</h1><p className="opacity-75">Wähle eine Seite:</p><div className="flex gap-3 justify-center"><Link href="/client" className="px-4 py-2 rounded-xl border">Kundenseite</Link><Link href="/entrepreneur" className="px-4 py-2 rounded-xl border">Unternehmer</Link></div></div></main>);}
+export default function HomePage() {
+  return (
+    <main>
+      <h1>Start</h1>
+      <p>Wähle eine der zwei Seiten:</p>
+      <p>
+        <a className="btn" href="/client">Zur Client-Seite</a>
+        {" "}
+        <a className="btn" href="/entrepreneur">Zur Entrepreneur-Seite</a>
+      </p>
+    </main>
+  );
+}
