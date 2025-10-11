@@ -12,12 +12,12 @@ type PageProps = {
 export default async function TenantEntrepreneurPage({ params }: PageProps) {
   const slug = normalizeTenantSlug(params?.tenant);
   if (!slug) {
-    notFound();
+    return notFound();
   }
 
   const tenant = await prisma.business.findUnique({ where: { slug } });
   if (!tenant) {
-    notFound();
+    return notFound();
   }
 
   redirect(`/t/${tenant.slug}/entrepreneur/dashboard`);

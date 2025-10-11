@@ -42,13 +42,13 @@ type BookingRow = {
 export default async function DashboardPage({ params }: PageProps) {
   const slug = normalizeTenantSlug(params?.tenant);
   if (!slug) {
-    notFound();
+    return notFound();
   }
 
   try {
     const business = await prisma.business.findUnique({ where: { slug } });
     if (!business) {
-      notFound();
+      return notFound();
     }
 
     const [settingsRecord, bookings] = await Promise.all([

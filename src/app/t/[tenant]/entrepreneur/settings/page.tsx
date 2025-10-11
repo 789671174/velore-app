@@ -12,12 +12,12 @@ type PageProps = {
 export default async function TenantEntrepreneurSettingsPage({ params }: PageProps) {
   const slug = normalizeTenantSlug(params?.tenant);
   if (!slug) {
-    notFound();
+    return notFound();
   }
 
   const settings = await getSettingsByTenantSlug(slug);
   if (!settings) {
-    notFound();
+    return notFound();
   }
 
   return <SettingsView tenantSlug={slug} initialSettings={settings} />;
