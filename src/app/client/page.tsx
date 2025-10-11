@@ -36,6 +36,7 @@ export default function ClientPage() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [tenant, setTenant] = useState<string | null>(null);
 
   const [companyName, setCompanyName] = useState("Velora");
   const [companyEmail, setCompanyEmail] = useState<string | null>(null);
@@ -66,9 +67,18 @@ export default function ClientPage() {
   }, [theme]);
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      const slug = (url.searchParams.get("tenant") || url.searchParams.get("t") || "").trim();
+      setTenant(slug || null);
+    }
+  }, []);
+
+  useEffect(() => {
     async function loadSettings() {
       try {
-        const res = await fetch("/api/settings");
+        const query = tenant ? `?tenant=${encodeURIComponent(tenant)}` : "";
+        const res = await fetch(`/api/settings${query}`);
         if (!res.ok) throw new Error(await res.text());
         const data = (await res.json()) as SettingsResponse;
         setCompanyName(data.name || "Velora");
@@ -81,17 +91,17 @@ export default function ClientPage() {
     }
 
     loadSettings();
-  }, []);
+  }, [tenant]);
 
   useEffect(() => {
     refreshSlots(date);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date]);
+  }, [date, tenant]);
 
   const refreshSlots = async (nextDate: string) => {
     setLoadingSlots(true);
     try {
-      const res = await fetch(`/api/slots?date=${nextDate}`);
+      const slugParam = tenant ? `&tenant=${encodeURIComponent(tenant)}` : "";
+      const res = await fetch(`/api/slots?date=${nextDate}${slugParam}`);
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       const rawSlots: unknown = data?.slots ?? data;
@@ -129,7 +139,8 @@ export default function ClientPage() {
     setFeedback(null);
 
     try {
-      const res = await fetch("/api/bookings", {
+      const slugParam = tenant ? `?tenant=${encodeURIComponent(tenant)}` : "";
+      const res = await fetch(`/api/bookings${slugParam}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

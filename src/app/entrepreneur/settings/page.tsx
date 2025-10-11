@@ -1,15 +1,18 @@
-﻿import { getTenantSlug, ensureBusinessWithSettings } from "@/app/lib/tenant";
+import { notFound } from "next/navigation";
+
+import { getTenantSlug, getSettingsByTenantSlug } from "@/app/lib/tenant";
 import SettingsView from "./SettingsView";
 
-export default async function EntrepreneurSettingsPage({ searchParams }: { searchParams?: { t?: string } }) {
-  const slug = getTenantSlug(searchParams);
-  const { business, settings } = await ensureBusinessWithSettings(slug);
+type PageProps = {
+  searchParams?: { t?: string; tenant?: string };
+};
 
-  return (
-    <SettingsView
-      tenant={slug}
-      business={business}
-      initialSettings={settings}
-    />
-  );
+export default async function EntrepreneurSettingsPage({ searchParams }: PageProps) {
+  const slug = getTenantSlug(searchParams);
+  const settings = await getSettingsByTenantSlug(slug);
+  if (!settings) {
+    notFound();
+  }
+
+  return <SettingsView tenantSlug={slug} initialSettings={settings} />;
 }

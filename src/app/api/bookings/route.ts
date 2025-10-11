@@ -1,6 +1,9 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+
 import { prisma } from "@/app/lib/prisma";
 import { getTenantFromRequest, resolveBusiness } from "@/app/lib/tenant";
+
+const ALLOWED_STATUSES = new Set(["pending", "accepted", "declined"]);
 
 export async function GET(req: Request) {
   const tenant = getTenantFromRequest(req);
@@ -8,8 +11,8 @@ export async function GET(req: Request) {
   if (!biz) return NextResponse.json({ error: "tenant not found" }, { status: 404 });
 
   const { searchParams } = new URL(req.url);
-  const date = searchParams.get("date"); // optionaler Filter
-  const where: any = { businessId: biz.id };
+  const date = searchParams.get("date");
+  const where: { businessId: string; date?: Date } = { businessId: biz.id };
   if (date) where.date = new Date(date);
 
   const data = await prisma.booking.findMany({
@@ -51,10 +54,22 @@ export async function PATCH(req: Request) {
   if (!biz) return NextResponse.json({ error: "tenant not found" }, { status: 404 });
 
   const body = await req.json();
-  if (!body?.id) return NextResponse.json({ error: "id required" }, { status: 400 });
+  const id = body?.id;
+  if (!id || typeof id !== "string") {
+    return NextResponse.json({ error: "id required" }, { status: 400 });
+  }
+
+  const booking = await prisma.booking.findUnique({ where: { id } });
+  if (!booking || booking.businessId !== biz.id) {
+    return NextResponse.json({ error: "booking not found" }, { status: 404 });
+  }
+
+  const nextStatus = typeof body.status === "string" ? body.status.toLowerCase() : "pending";
+  const status = ALLOWED_STATUSES.has(nextStatus) ? nextStatus : "pending";
+
   const updated = await prisma.booking.update({
-    where: { id: body.id },
-    data: { status: body.status ?? "pending" },
+    where: { id },
+    data: { status },
   });
   return NextResponse.json(updated);
 }

@@ -1,147 +1,126 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { z } from "zod";
 
 import { prisma } from "@/app/lib/prisma";
 import {
   DEFAULT_HOURS,
   DEFAULT_WORK_DAYS,
-  VacationRange,
   normalizeHours,
   normalizeWorkDays,
-  safeParseJson,
   sanitizeVacationRanges,
 } from "@/app/lib/settings";
-import { getTenantFromRequest, resolveBusiness } from "@/app/lib/tenant";
+import {
+  buildTenantSettingsPayload,
+  getSettingsByTenantSlug,
+  getTenantFromRequest,
+  normalizeTenantSlug,
+} from "@/app/lib/tenant";
 
-type SettingsPayload = {
-  tenant?: string;
-  name?: string;
-  email?: string;
-  logoDataUrl?: string | null;
-  slotMinutes?: number;
-  bufferMinutes?: number;
-  workDays?: number[];
-  hours?: Record<number, { from: string; to: string }[]>;
-  vacationDays?: VacationRange[];
-  bookingNotes?: string | null;
-};
+const timeRangeSchema = z.object({
+  from: z.string().min(1),
+  to: z.string().min(1),
+});
 
-function prepareHours(value: SettingsPayload["hours"]) {
-  if (!value || typeof value !== "object") {
-    return DEFAULT_HOURS;
+const vacationSchema = z.object({
+  start: z.string().min(1),
+  end: z.string().optional(),
+  note: z.string().optional(),
+});
+
+const settingsSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
+  email: z.string().email().max(254).optional(),
+  logoDataUrl: z.string().max(500_000).optional().nullable(),
+  slotMinutes: z.number().int().min(5).max(240).optional(),
+  bufferMinutes: z.number().int().min(0).max(120).optional(),
+  workDays: z.array(z.number().int().min(0).max(6)).optional(),
+  hours: z.record(z.array(timeRangeSchema)).optional(),
+  vacationDays: z.array(vacationSchema).optional(),
+  bookingNotes: z.string().max(2000).optional().nullable(),
+});
+
+export async function GET(req: Request) {
+  const tenantSlug = getTenantFromRequest(req);
+  if (!tenantSlug) {
+    return NextResponse.json({ error: "tenant missing" }, { status: 400 });
   }
 
-  const normalized = normalizeHours(value);
-  return Object.keys(normalized).length ? normalized : DEFAULT_HOURS;
+  const settings = await getSettingsByTenantSlug(tenantSlug);
+  if (!settings) {
+    return NextResponse.json({ error: "tenant not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(settings);
 }
 
-function prepareWorkDays(value: SettingsPayload["workDays"]) {
-  const normalized = normalizeWorkDays(value ?? []);
-  return normalized.length ? normalized : DEFAULT_WORK_DAYS;
-}
+export async function PATCH(req: Request) {
+  const tenantSlug = normalizeTenantSlug(getTenantFromRequest(req));
+  if (!tenantSlug) {
+    return NextResponse.json({ error: "tenant missing" }, { status: 400 });
+  }
 
-async function getTenantContext(req: Request) {
-  const tenant = getTenantFromRequest(req);
-  const business = await resolveBusiness(tenant);
+  const business = await prisma.business.findUnique({ where: { slug: tenantSlug } });
   if (!business) {
     return NextResponse.json({ error: "tenant not found" }, { status: 404 });
   }
 
-  let settings = await prisma.settings.findUnique({ where: { businessId: business.id } });
-  if (!settings) {
-    settings = await prisma.settings.create({
-      data: {
-        businessId: business.id,
-        slotMinutes: 30,
-        bufferMinutes: 0,
-        hoursJson: JSON.stringify(DEFAULT_HOURS),
-        workDaysJson: JSON.stringify(DEFAULT_WORK_DAYS),
-        vacationDaysJson: JSON.stringify([]),
-      },
-    });
+  const json = await req.json().catch(() => null);
+  if (!json || typeof json !== "object") {
+    return NextResponse.json({ error: "invalid payload" }, { status: 400 });
   }
 
-  return { business, settings };
-}
+  const parsed = settingsSchema.safeParse(json);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "validation failed", issues: parsed.error.flatten() }, { status: 400 });
+  }
 
-export async function GET(req: Request) {
-  const context = await getTenantContext(req);
-  if (context instanceof NextResponse) return context;
+  const data = parsed.data;
 
-  const { business, settings } = context;
+  const name = data.name?.trim() || business.name;
+  const email = data.email?.trim() || null;
+  const logoDataUrl = data.logoDataUrl?.toString().trim() || null;
+  const slotMinutes = Math.max(5, Math.min(240, data.slotMinutes ?? 30));
+  const bufferMinutes = Math.max(0, Math.min(120, data.bufferMinutes ?? 0));
+  const workDays = normalizeWorkDays(data.workDays ?? DEFAULT_WORK_DAYS);
+  const hours = normalizeHours(data.hours ?? DEFAULT_HOURS);
+  const vacationDays = sanitizeVacationRanges(data.vacationDays ?? []);
+  const bookingNotes = data.bookingNotes?.toString().trim() || null;
 
-  const workDays = safeParseJson(settings.workDaysJson, DEFAULT_WORK_DAYS);
-  const hours = safeParseJson(settings.hoursJson, DEFAULT_HOURS);
-  const vacations = sanitizeVacationRanges(safeParseJson(settings.vacationDaysJson, [] as VacationRange[]));
+  const [updatedBusiness, updatedSettings] = await prisma.$transaction([
+    prisma.business.update({
+      where: { id: business.id },
+      data: {
+        name,
+        email,
+        logoDataUrl,
+      },
+    }),
+    prisma.settings.upsert({
+      where: { businessId: business.id },
+      update: {
+        slotMinutes,
+        bufferMinutes,
+        hoursJson: JSON.stringify(Object.keys(hours).length ? hours : DEFAULT_HOURS),
+        workDaysJson: JSON.stringify(workDays.length ? workDays : DEFAULT_WORK_DAYS),
+        vacationDaysJson: JSON.stringify(vacationDays),
+        bookingNotes,
+      },
+      create: {
+        businessId: business.id,
+        slotMinutes,
+        bufferMinutes,
+        hoursJson: JSON.stringify(Object.keys(hours).length ? hours : DEFAULT_HOURS),
+        workDaysJson: JSON.stringify(workDays.length ? workDays : DEFAULT_WORK_DAYS),
+        vacationDaysJson: JSON.stringify(vacationDays),
+        bookingNotes,
+      },
+    }),
+  ]);
 
-  return NextResponse.json({
-    tenant: business.slug,
-    name: business.name,
-    email: business.email,
-    logoDataUrl: business.logoDataUrl,
-    slotMinutes: settings.slotMinutes,
-    bufferMinutes: settings.bufferMinutes,
-    workDays: normalizeWorkDays(workDays),
-    hours: normalizeHours(hours),
-    vacationDays: vacations,
-    bookingNotes: settings.bookingNotes,
-    timezone: business.timezone,
-  });
+  const payload = buildTenantSettingsPayload(updatedBusiness, updatedSettings);
+  return NextResponse.json({ ok: true, settings: payload });
 }
 
 export async function POST(req: Request) {
-  const body = (await req.json()) as SettingsPayload;
-  const tenant = body.tenant || getTenantFromRequest(req);
-  const business = await resolveBusiness(tenant);
-
-  if (!business) {
-    return NextResponse.json({ error: "tenant not found" }, { status: 404 });
-  }
-
-  const workDays = prepareWorkDays(body.workDays);
-  const hours = prepareHours(body.hours);
-  const vacationDays = sanitizeVacationRanges(body.vacationDays);
-
-  const slotMinutes = Math.max(5, Math.min(240, Number(body.slotMinutes ?? 30)));
-  const bufferMinutes = Math.max(0, Math.min(120, Number(body.bufferMinutes ?? 0)));
-
-  const logoDataUrl = body.logoDataUrl?.trim() || null;
-  const bookingNotes = body.bookingNotes?.toString().trim() || null;
-  const name = body.name?.toString().trim() || business.name;
-  const email = body.email?.toString().trim() || null;
-
-  const updatedBusiness = await prisma.business.update({
-    where: { id: business.id },
-    data: {
-      name,
-      email,
-      logoDataUrl,
-    },
-  });
-
-  const settings = await prisma.settings.upsert({
-    where: { businessId: business.id },
-    update: {
-      slotMinutes,
-      bufferMinutes,
-      hoursJson: JSON.stringify(hours),
-      workDaysJson: JSON.stringify(workDays),
-      vacationDaysJson: JSON.stringify(vacationDays),
-      bookingNotes,
-    },
-    create: {
-      businessId: business.id,
-      slotMinutes,
-      bufferMinutes,
-      hoursJson: JSON.stringify(hours),
-      workDaysJson: JSON.stringify(workDays),
-      vacationDaysJson: JSON.stringify(vacationDays),
-      bookingNotes,
-    },
-  });
-
-  return NextResponse.json({
-    ok: true,
-    business: updatedBusiness,
-    settings,
-  });
+  return PATCH(req);
 }

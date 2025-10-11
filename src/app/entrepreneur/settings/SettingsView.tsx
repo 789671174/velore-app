@@ -1,8 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useState } from "react";
-
-import type { Business, Settings } from "@prisma/client";
+import { useEffect, useMemo, useState } from "react";
 
 import type { Holiday } from "@/app/types";
 import type { TimeRange, VacationRange } from "@/app/lib/settings";
@@ -10,15 +8,13 @@ import {
   DEFAULT_HOURS,
   DEFAULT_WORK_DAYS,
   normalizeHours,
-  normalizeWorkDays,
-  safeParseJson,
   sanitizeVacationRanges,
 } from "@/app/lib/settings";
+import type { TenantSettingsPayload } from "@/app/lib/tenant";
 
 type Props = {
-  tenant: string;
-  business: Business;
-  initialSettings: Settings;
+  tenantSlug: string;
+  initialSettings: TenantSettingsPayload;
 };
 
 const DAY_LABELS = [
@@ -33,29 +29,31 @@ const DAY_LABELS = [
 
 const createDefaultInterval = (): TimeRange => ({ from: "09:00", to: "17:00" });
 
-export default function SettingsView({ tenant, business, initialSettings }: Props) {
-  const [name, setName] = useState(business.name);
-  const [email, setEmail] = useState(business.email ?? "");
-  const [logoDataUrl, setLogoDataUrl] = useState(business.logoDataUrl ?? "");
+export default function SettingsView({ tenantSlug, initialSettings }: Props) {
+  const normalizedWorkDays = useMemo(
+    () => (initialSettings.workDays.length ? initialSettings.workDays : DEFAULT_WORK_DAYS),
+    [initialSettings.workDays],
+  );
+
+  const normalizedHours = useMemo(() => {
+    const parsed = normalizeHours(initialSettings.hours);
+    return Object.keys(parsed).length ? parsed : DEFAULT_HOURS;
+  }, [initialSettings.hours]);
+
+  const [name, setName] = useState(initialSettings.name);
+  const [email, setEmail] = useState(initialSettings.email ?? "");
+  const [logoDataUrl, setLogoDataUrl] = useState(initialSettings.logoDataUrl ?? "");
   const [slotMinutes, setSlotMinutes] = useState(initialSettings.slotMinutes);
   const [bufferMinutes, setBufferMinutes] = useState(initialSettings.bufferMinutes);
   const [bookingNotes, setBookingNotes] = useState(initialSettings.bookingNotes ?? "");
 
-  const [workDays, setWorkDays] = useState<number[]>(() => {
-    const parsed = normalizeWorkDays(safeParseJson(initialSettings.workDaysJson, DEFAULT_WORK_DAYS));
-    return parsed.length ? parsed : DEFAULT_WORK_DAYS;
-  });
-
-  const [hours, setHours] = useState<Record<number, TimeRange[]>>(() => {
-    const parsed = normalizeHours(safeParseJson(initialSettings.hoursJson, DEFAULT_HOURS));
-    return Object.keys(parsed).length ? parsed : DEFAULT_HOURS;
-  });
-
+  const [workDays, setWorkDays] = useState<number[]>(normalizedWorkDays);
+  const [hours, setHours] = useState<Record<number, TimeRange[]>>(normalizedHours);
   const [vacations, setVacations] = useState<VacationRange[]>(() =>
-    sanitizeVacationRanges(safeParseJson(initialSettings.vacationDaysJson, [] as VacationRange[])),
+    sanitizeVacationRanges(initialSettings.vacationDays),
   );
-
   const [vacationDraft, setVacationDraft] = useState<VacationRange>({ start: "", end: "", note: "" });
+
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [holidayDraft, setHolidayDraft] = useState<{ date: string; reason: string }>({ date: "", reason: "" });
   const [holidayLoading, setHolidayLoading] = useState(false);
@@ -69,7 +67,7 @@ export default function SettingsView({ tenant, business, initialSettings }: Prop
     async function loadHolidays() {
       try {
         setHolidayLoading(true);
-        const res = await fetch(`/api/holidays?t=${tenant}`);
+        const res = await fetch(`/api/holidays?tenant=${encodeURIComponent(tenantSlug)}`);
         if (!res.ok) throw new Error(await res.text());
         const data = (await res.json()) as Holiday[];
         if (!ignore) {
@@ -90,7 +88,7 @@ export default function SettingsView({ tenant, business, initialSettings }: Prop
     return () => {
       ignore = true;
     };
-  }, [tenant]);
+  }, [tenantSlug]);
 
   const toggleDay = (day: number) => {
     setWorkDays((prev) => {
@@ -194,7 +192,7 @@ export default function SettingsView({ tenant, business, initialSettings }: Prop
 
     try {
       setHolidayLoading(true);
-      const res = await fetch(`/api/holidays?t=${tenant}`, {
+      const res = await fetch(`/api/holidays?tenant=${encodeURIComponent(tenantSlug)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date: holidayDraft.date, reason: holidayDraft.reason || undefined }),
@@ -216,7 +214,9 @@ export default function SettingsView({ tenant, business, initialSettings }: Prop
     setMessage("");
     try {
       setHolidayLoading(true);
-      const res = await fetch(`/api/holidays?id=${id}&t=${tenant}`, { method: "DELETE" });
+      const res = await fetch(`/api/holidays?id=${encodeURIComponent(id)}&tenant=${encodeURIComponent(tenantSlug)}`, {
+        method: "DELETE",
+      });
       if (!res.ok) throw new Error(await res.text());
       setHolidays((prev) => prev.filter((holiday) => holiday.id !== id));
     } catch (err: any) {
@@ -232,8 +232,7 @@ export default function SettingsView({ tenant, business, initialSettings }: Prop
     setError(null);
     try {
       const payload = {
-        tenant,
-        name: name.trim() || business.name,
+        name: name.trim() || initialSettings.name || tenantSlug,
         email: email.trim() || undefined,
         logoDataUrl: logoDataUrl.trim() || null,
         slotMinutes: Number(slotMinutes),
@@ -244,8 +243,8 @@ export default function SettingsView({ tenant, business, initialSettings }: Prop
         bookingNotes: bookingNotes.trim() || null,
       };
 
-      const res = await fetch("/api/settings", {
-        method: "POST",
+      const res = await fetch(`/api/settings?tenant=${encodeURIComponent(tenantSlug)}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -268,17 +267,17 @@ export default function SettingsView({ tenant, business, initialSettings }: Prop
   return (
     <div className="mx-auto max-w-5xl space-y-10 px-4 py-10">
       <div>
-        <h1 className="text-2xl font-semibold text-neutral-900">Einstellungen – {name || business.name}</h1>
-        <p className="text-sm text-neutral-500">Tenant: {tenant}</p>
+        <h1 className="text-2xl font-semibold text-neutral-900">
+          Einstellungen – {name || initialSettings.name || tenantSlug}
+        </h1>
+        <p className="text-sm text-neutral-500">Tenant: {tenantSlug}</p>
       </div>
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
       {message && !error && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {message}
-        </div>
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</div>
       )}
 
       <section className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
