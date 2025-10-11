@@ -1,27 +1,9 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-:root {
-  color-scheme: light dark;
-}
-
-body {
-  @apply bg-neutral-50 text-neutral-900 transition-colors duration-300 ease-out dark:bg-[#0b1220] dark:text-neutral-100;
-}
-
-html[data-theme="dark"] body {
-  @apply bg-[#0b1220] text-neutral-100;
-}
-
-html[data-theme="light"] body {
-  @apply bg-neutral-50 text-neutral-900;
-}
-
-.theme-container input[type="date"]::-webkit-calendar-picker-indicator {
-  cursor: pointer;
-}
-
-html[data-theme="dark"] .theme-container input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-}
+:root { --bg:#0b0b0b; --fg:#f3f3f3; --link:#9ecbff; }
+* { box-sizing: border-box; }
+html, body { padding:0; margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, Noto Sans, "Apple Color Emoji", "Segoe UI Emoji"; }
+body { background: var(--bg); color: var(--fg); }
+a { color: var(--link); text-decoration: none; }
+main { padding: 24px; max-width: 900px; margin: 0 auto; }
+nav { display:flex; gap:12px; padding: 12px 24px; border-bottom: 1px solid #222; }
+footer { padding: 24px; border-top: 1px solid #222; opacity:.7; }
+button, .btn { display:inline-block; padding: 10px 14px; border: 1px solid #333; border-radius: 8px; }
