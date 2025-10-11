@@ -1,24 +1,35 @@
+// Server component: fetch tenant + settings on the server,
+// pass safe defaults to the existing client SettingsView.
+
 import { notFound } from "next/navigation";
 
-import SettingsView from "@/app/entrepreneur/settings/SettingsView";
-import { getSettingsByTenantSlug, normalizeTenantSlug } from "@/app/lib/tenant";
+import SettingsView from "./SettingsView"; // this is a CLIENT component
+import { prisma } from "@/lib/db";
+import { buildTenantSettingsPayload, normalizeTenantSlug } from "@/app/lib/tenant";
 
-type PageProps = {
-  params: {
-    tenant?: string;
-  };
-};
+type Params = { params: { tenant?: string } };
 
-export default async function TenantEntrepreneurSettingsPage({ params }: PageProps) {
-  const slug = normalizeTenantSlug(params?.tenant);
+export default async function SettingsPage({ params }: Params) {
+  const slug = normalizeTenantSlug(params.tenant);
   if (!slug) {
-    return notFound();
+    notFound();
   }
 
-  const settings = await getSettingsByTenantSlug(slug);
-  if (!settings) {
-    return notFound();
+  const tenant = await prisma.business.findUnique({
+    where: { slug },
+  });
+
+  if (!tenant) {
+    notFound();
   }
 
-  return <SettingsView tenantSlug={slug} initialSettings={settings} />;
+  const settings = await prisma.settings.findUnique({
+    where: { businessId: tenant.id },
+  });
+
+  const initialSettings = buildTenantSettingsPayload(tenant, settings ?? null);
+
+  return (
+    <SettingsView tenantSlug={tenant.slug} initialSettings={initialSettings} />
+  );
 }

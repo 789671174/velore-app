@@ -1,24 +1,28 @@
-import { notFound, redirect } from "next/navigation";
+// Server component: validate tenant, then redirect server-side to dashboard.
+// No client hooks here.
 
-import { prisma } from "@/app/lib/prisma";
+import { redirect, notFound } from "next/navigation";
+
+import { prisma } from "@/lib/db";
 import { normalizeTenantSlug } from "@/app/lib/tenant";
 
-type PageProps = {
-  params: {
-    tenant?: string;
-  };
-};
+type Params = { params: { tenant?: string } };
 
-export default async function TenantEntrepreneurPage({ params }: PageProps) {
-  const slug = normalizeTenantSlug(params?.tenant);
+export default async function EntrepreneurEntry({ params }: Params) {
+  const slug = normalizeTenantSlug(params.tenant);
   if (!slug) {
-    return notFound();
+    notFound();
   }
 
-  const tenant = await prisma.business.findUnique({ where: { slug } });
+  const tenant = await prisma.business.findUnique({
+    where: { slug },
+    select: { id: true, slug: true },
+  });
+
   if (!tenant) {
-    return notFound();
+    notFound();
   }
 
+  // SSR redirect (no useEffect)
   redirect(`/t/${tenant.slug}/entrepreneur/dashboard`);
 }
